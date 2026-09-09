@@ -82,7 +82,7 @@ export const PersistentPlayer: React.FC = () => {
       </div>
 
       {/* ---------- Expanded (≥ md) ---------- */}
-      <div className="hidden md:grid h-full grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,1fr)] items-center gap-4 px-4 lg:px-6">
+      <div className="hidden md:grid h-full grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)] items-center gap-4 px-4 lg:px-6">
         {/* Track */}
         <div className="flex items-center gap-3 min-w-0">
           <button onClick={() => openFullPlayer()} className="group relative size-14 shrink-0 rounded-sm overflow-hidden shadow-md3-1" aria-label="Open full player">
@@ -95,25 +95,25 @@ export const PersistentPlayer: React.FC = () => {
               {error ? error : track.artist_id ? <Link to="/artist/$artistId" params={{ artistId: track.artist_id }} className="hover:underline">{track.artist}</Link> : track.artist}
             </p>
           </div>
-          <IconButton label={isLiked ? 'Remove from favourites' : 'Add to favourites'} size="sm" selected={isLiked} onClick={() => void toggleLike(track)} className="ml-1">
+          <IconButton label={isLiked ? 'Remove from favourites' : 'Add to favourites'} size="md" selected={isLiked} onClick={() => void toggleLike(track)} className="ml-1">
             <Heart className={cn(isLiked && 'fill-current')} />
           </IconButton>
         </div>
 
         {/* Controls */}
-        <div className="flex flex-col items-center justify-center min-w-0 max-w-[640px] w-full mx-auto">
+        <div className="flex flex-col items-center justify-center min-w-0 max-w-[520px] w-full mx-auto">
           <PlaybackControls />
           <Scrubber size="sm" className="mt-0.5" />
         </div>
 
         {/* Right */}
-        <div className="flex items-center justify-end gap-0.5 lg:gap-1 min-w-0">
+        <div className="flex items-center justify-end gap-1 lg:gap-1.5 min-w-0">
           {showLyricsButton && (
-            <IconButton label="Lyrics" size="sm" selected={lyricsActive} onClick={toggleLyrics}><Mic2 /></IconButton>
+            <IconButton label="Lyrics" size="md" selected={lyricsActive} onClick={toggleLyrics}><Mic2 /></IconButton>
           )}
-          <IconButton label="Queue" size="sm" selected={queueDrawerOpen || (fullPlayerOpen && fullPlayerPane === 'queue')} onClick={toggleQueueDrawer}><ListMusic /></IconButton>
+          <IconButton label="Queue" size="md" selected={queueDrawerOpen || (fullPlayerOpen && fullPlayerPane === 'queue')} onClick={toggleQueueDrawer}><ListMusic /></IconButton>
           <VolumeControl className="hidden lg:flex" />
-          <IconButton label="Full screen player" size="sm" onClick={() => openFullPlayer()}><Maximize2 /></IconButton>
+          <IconButton label="Full screen player" size="md" onClick={() => openFullPlayer()}><Maximize2 /></IconButton>
         </div>
       </div>
     </div>

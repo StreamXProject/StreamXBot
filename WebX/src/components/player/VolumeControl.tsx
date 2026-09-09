@@ -14,7 +14,7 @@ export const VolumeControl: React.FC<{ className?: string; sliderClassName?: str
   const Icon = v === 0 ? VolumeX : v < 0.34 ? Volume : v < 0.67 ? Volume1 : Volume2
   return (
     <div className={cn('flex items-center gap-1', className)} onWheel={(e) => { e.preventDefault(); adjustVolume(e.deltaY < 0 ? 0.05 : -0.05) }}>
-      <IconButton label={isMuted ? 'Unmute' : 'Mute'} size="sm" onClick={toggleMute}>
+      <IconButton label={isMuted ? 'Unmute' : 'Mute'} size="md" onClick={toggleMute}>
         <Icon />
       </IconButton>
       <Slider value={Math.round(v * 100)} min={0} max={100} onChange={(n) => setVolume(n / 100)} aria-label="Volume" className={cn('w-28', sliderClassName)} />

@@ -35,6 +35,8 @@ export interface SettingsState {
   keyboardShortcuts: boolean
   confirmDestructive: boolean
   showQualityBadges: boolean
+  /** Interface scale (CSS zoom on <body>), 0.8 – 1.3 */
+  uiScale: number
 
   // Onboarding
   hasSeenWelcome: boolean
@@ -80,6 +82,7 @@ const DEFAULTS = {
   keyboardShortcuts: true,
   confirmDestructive: true,
   showQualityBadges: true,
+  uiScale: 1,
   hasSeenWelcome: false,
 }
 

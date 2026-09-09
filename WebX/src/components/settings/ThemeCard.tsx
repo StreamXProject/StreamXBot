@@ -21,7 +21,7 @@ export const ThemeCard: React.FC<{
       onClick={onSelect}
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onSelect()}
       className={cn(
-        'group relative flex flex-col rounded-lg overflow-hidden cursor-pointer outline-none transition-[box-shadow,transform] duration-200 ease-emphasized',
+        'group relative flex flex-col rounded-lg overflow-hidden cursor-pointer outline-none transition-[box-shadow,transform] duration-200 ease-emphasized w-44 sm:w-52 shrink-0 snap-start',
         'ring-2 ring-offset-2 ring-offset-surface',
         active ? 'ring-primary' : 'ring-transparent hover:ring-outline-variant focus-visible:ring-primary/60'
       )}

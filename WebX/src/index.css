@@ -388,6 +388,17 @@
       opacity var(--md-sys-motion-duration-short4) linear,
       visibility 0s;
   }
+  /* Now-playing artwork: soft tinted glow, gently shrinks while paused */
+  .np-art {
+    transition: transform var(--md-sys-motion-duration-medium4) var(--md-sys-motion-easing-emphasized), filter var(--md-sys-motion-duration-medium4) linear;
+    filter: drop-shadow(0 24px 48px color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent)) drop-shadow(0 6px 16px rgb(0 0 0 / 0.35));
+    transform: scale(1);
+    will-change: transform;
+  }
+  .np-art[data-playing="false"] {
+    transform: scale(0.92);
+    filter: drop-shadow(0 12px 28px color-mix(in srgb, var(--md-sys-color-primary) 14%, transparent)) drop-shadow(0 4px 10px rgb(0 0 0 / 0.3));
+  }
   .fullplayer-panel {
     transition: transform var(--md-sys-motion-duration-medium4) var(--md-sys-motion-easing-emphasized), opacity var(--md-sys-motion-duration-medium2) linear;
     will-change: transform, opacity;

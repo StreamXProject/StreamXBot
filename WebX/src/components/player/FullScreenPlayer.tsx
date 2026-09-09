@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
-import { ChevronDown, Heart, Mic2, ListMusic, Info, MoreHorizontal, Moon, Gauge, Download, Disc3, User, ListPlus, Share2 } from 'lucide-react'
+import { useNavigate, Link } from '@tanstack/react-router'
+import { ChevronDown, Heart, Mic2, ListMusic, Info, MoreHorizontal, Moon, Gauge, Download, Disc3, User, ListPlus, Share2, Radio } from 'lucide-react'
 import { usePlayerStore } from '@/stores/playerStore'
 import { useQueueStore } from '@/stores/queueStore'
 import { useUiStore, type FullPlayerPane } from '@/stores/uiStore'
@@ -79,10 +79,12 @@ export const FullScreenPlayer: React.FC = () => {
   const openAddToPlaylist = useUiStore((s) => s.openAddToPlaylist)
   const setSleepTimerOpen = useUiStore((s) => s.setSleepTimerOpen)
   const track = usePlayerStore((s) => s.currentTrack)
+  const isPlaying = usePlayerStore((s) => s.isPlaying)
   const playbackRate = usePlayerStore((s) => s.playbackRate)
   const setPlaybackRate = usePlayerStore((s) => s.setPlaybackRate)
   const sleepAt = usePlayerStore((s) => s.sleepAt)
   const context = useQueueStore((s) => s.context)
+  const upNextCount = useQueueStore((s) => Math.max(0, s.queue.length - s.currentIndex - 1))
   const isLiked = useLibraryStore((s) => (track ? s.likedIds.has(track.id) : false))
   const toggleLike = useLibraryStore((s) => s.toggleLike)
   const ambient = useThemeStore((s) => s.activeTheme.effects.ambientBackdrop)
@@ -158,6 +160,40 @@ export const FullScreenPlayer: React.FC = () => {
 
   const showPlayer = isDesktop || mobilePane === 'player'
   const activePane: FullPlayerPane = isDesktop ? pane : mobilePane === 'player' ? 'lyrics' : mobilePane
+  const paneOptions = PANES.map((p) => (p.value === 'queue' && upNextCount > 0 ? { ...p, label: `Up next · ${upNextCount}` } : p))
+
+  const TitleBlock = (
+    <div className="min-w-0 flex-1">
+      <h1 className={cn('text-on-surface truncate', isDesktop ? 'type-headline-md' : 'type-headline-sm')}>{track.title}</h1>
+      <p className="type-body-lg text-on-surface-variant truncate mt-0.5">
+        {track.artist_id ? (
+          <Link to="/artist/$artistId" params={{ artistId: track.artist_id }} onClick={close} className="hover:underline hover:text-on-surface">{track.artist}</Link>
+        ) : (
+          track.artist
+        )}
+      </p>
+      <p className="mt-1.5 flex items-center gap-2 min-w-0 type-body-sm text-on-surface-variant/80">
+        <QualityBadge type={track.type} hz={track.sampling_rate_hz} verbose />
+        {(track.album || track.year) && (
+          <span className="truncate">
+            {track.album_id && track.album ? (
+              <Link to="/album/$albumId" params={{ albumId: track.album_id }} onClick={close} className="hover:underline">{track.album}</Link>
+            ) : (
+              track.album
+            )}
+            {track.album && track.year ? ' · ' : ''}
+            {track.year || ''}
+          </span>
+        )}
+      </p>
+    </div>
+  )
+
+  const LikeButton = (
+    <IconButton label={isLiked ? 'Remove from favourites' : 'Add to favourites'} size="lg" variant="tonal" selected={isLiked} onClick={() => void toggleLike(track)} className={cn(isLiked && 'text-primary')}>
+      <Heart className={cn(isLiked && 'fill-current')} />
+    </IconButton>
+  )
 
   return (
     <div
@@ -175,7 +211,7 @@ export const FullScreenPlayer: React.FC = () => {
 
       {/* Top bar / drag handle */}
       <header
-        className="relative z-10 flex items-center justify-between px-3 sm:px-5 h-16 shrink-0 touch-none"
+        className="relative z-10 flex items-center justify-between gap-2 px-3 sm:px-5 h-16 shrink-0 touch-none"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
@@ -184,13 +220,21 @@ export const FullScreenPlayer: React.FC = () => {
         <IconButton label="Minimize" size="lg" onClick={close}>
           <ChevronDown />
         </IconButton>
-        <div className="flex-1 min-w-0 text-center px-2">
-          <p className="type-label-md text-on-surface-variant truncate">Playing from</p>
-          <p className="type-title-sm text-on-surface truncate">{context?.title ?? track.album ?? 'Your library'}</p>
+        <div className="flex-1 min-w-0 flex justify-center px-2">
+          <div className="inline-flex items-center gap-2 h-9 px-3.5 rounded-full glass border border-outline-variant/40 max-w-full">
+            <Radio className="size-4 text-primary shrink-0" />
+            <span className="type-label-md text-on-surface-variant shrink-0">Playing from</span>
+            <span className="type-label-lg text-on-surface truncate">{context?.title ?? track.album ?? 'Your library'}</span>
+          </div>
         </div>
-        <IconButton label="More" size="lg" onClick={(e) => setMenuAnchor(e.currentTarget)}>
-          <MoreHorizontal />
-        </IconButton>
+        <div className="flex items-center gap-1">
+          <IconButton label="Add to playlist" size="lg" onClick={() => openAddToPlaylist([track])} className="hidden sm:inline-flex">
+            <ListPlus />
+          </IconButton>
+          <IconButton label="More" size="lg" onClick={(e) => setMenuAnchor(e.currentTarget)}>
+            <MoreHorizontal />
+          </IconButton>
+        </div>
         <div className="md:hidden absolute left-1/2 -translate-x-1/2 top-1.5 w-9 h-1 rounded-full bg-on-surface/25" />
       </header>
 
@@ -205,7 +249,7 @@ export const FullScreenPlayer: React.FC = () => {
             options={[
               { value: 'player' as const, label: 'Playing' },
               { value: 'lyrics' as const, label: 'Lyrics', icon: <Mic2 /> },
-              { value: 'queue' as const, label: 'Queue', icon: <ListMusic /> },
+              { value: 'queue' as const, label: upNextCount > 0 ? `Queue · ${upNextCount}` : 'Queue', icon: <ListMusic /> },
             ]}
           />
         </div>
@@ -214,59 +258,62 @@ export const FullScreenPlayer: React.FC = () => {
       {/* Body */}
       <main
         className={cn(
-          'relative z-10 flex-1 min-h-0 w-full max-w-[1400px] mx-auto px-5 sm:px-8',
-          isDesktop ? 'grid grid-cols-[minmax(340px,44%)_minmax(0,1fr)] gap-10 xl:gap-16 items-center pb-8' : 'flex flex-col'
+          'relative z-10 flex-1 min-h-0 w-full max-w-[1440px] mx-auto px-5 sm:px-8',
+          isDesktop ? 'grid grid-cols-[minmax(360px,42%)_minmax(0,1fr)] gap-10 xl:gap-16 items-center pb-8' : 'flex flex-col'
         )}
         style={isDesktop ? undefined : { paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 20px)' }}
       >
         {/* Left: artwork + controls */}
-        <section className={cn('flex flex-col justify-center min-h-0 w-full', isDesktop ? 'max-w-[520px] mx-auto' : 'flex-1', !showPlayer && 'hidden')}>
-          <div className={cn('mx-auto w-full min-h-0', isDesktop ? 'max-w-[440px]' : 'flex-1 flex items-center justify-center py-2')}>
-            <Artwork
-              src={track.cover_url}
-              alt={track.title}
-              priority
-              className={cn('aspect-square rounded-lg shadow-md3-3', isDesktop ? 'w-full' : 'max-h-full max-w-full')}
-              style={isDesktop ? undefined : { width: 'min(78vw, 52vh, 480px)' }}
-            />
-          </div>
-
-          <div className="mt-5 sm:mt-7 flex items-center gap-3 shrink-0">
-            <div className="min-w-0 flex-1">
-              <h1 className="type-headline-sm sm:type-headline-md text-on-surface truncate">{track.title}</h1>
-              <p className="type-body-lg text-on-surface-variant truncate mt-0.5 flex items-center gap-2">
-                <span className="truncate">{track.artist}</span>
-                <QualityBadge type={track.type} hz={track.sampling_rate_hz} verbose />
-              </p>
+        <section className={cn('flex flex-col justify-center min-h-0 w-full', isDesktop ? 'max-w-[540px] mx-auto' : 'flex-1', !showPlayer && 'hidden')}>
+          <div className={cn('mx-auto w-full min-h-0', isDesktop ? 'max-w-[460px]' : 'flex-1 flex items-center justify-center py-2')}>
+            <div
+              className={cn('np-art relative', isDesktop ? 'w-full' : 'max-h-full max-w-full')}
+              data-playing={isPlaying}
+              style={isDesktop ? undefined : { width: 'min(78vw, 50vh, 480px)' }}
+            >
+              <Artwork src={track.cover_url} alt={track.title} priority className="aspect-square w-full rounded-xl" />
             </div>
-            <IconButton label={isLiked ? 'Remove from favourites' : 'Add to favourites'} size="lg" variant="tonal" selected={isLiked} onClick={() => void toggleLike(track)} className={cn(isLiked && 'text-primary')}>
-              <Heart className={cn(isLiked && 'fill-current')} />
-            </IconButton>
           </div>
 
-          <Scrubber size="lg" className="mt-4 shrink-0" />
-          <PlaybackControls size="lg" className="mt-2 shrink-0" />
+          <div className="mt-6 sm:mt-8 flex items-center gap-3 shrink-0">
+            {TitleBlock}
+            {LikeButton}
+          </div>
 
-          {/* Secondary row: volume (tablet + desktop), timers */}
-          <div className="mt-3 sm:mt-4 shrink-0 hidden sm:flex items-center justify-center gap-6">
-            <VolumeControl sliderClassName="w-40 lg:w-48" />
-            {(sleepAt || playbackRate !== 1) && (
-              <div className="flex items-center gap-3 type-label-md text-primary">
-                {sleepAt && <span className="inline-flex items-center gap-1"><Moon className="size-4" /> {Math.max(1, Math.round((sleepAt - Date.now()) / 60000))}m</span>}
-                {playbackRate !== 1 && <span>{playbackRate}×</span>}
-              </div>
-            )}
+          <Scrubber size="lg" className="mt-5 shrink-0" />
+          <PlaybackControls size="lg" className="mt-3 shrink-0" />
+
+          {/* Secondary row: volume + session chips */}
+          <div className="mt-4 sm:mt-5 shrink-0 hidden sm:flex items-center justify-between gap-4">
+            <VolumeControl sliderClassName="w-36 lg:w-44" />
+            <div className="flex items-center gap-2">
+              {sleepAt && (
+                <button onClick={() => setSleepTimerOpen(true)} className="state-layer inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-secondary-container text-on-secondary-container type-label-md">
+                  <Moon className="size-3.5" /> {Math.max(1, Math.round((sleepAt - Date.now()) / 60000))}m
+                </button>
+              )}
+              {playbackRate !== 1 && (
+                <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-secondary-container text-on-secondary-container type-label-md">
+                  <Gauge className="size-3.5" /> {playbackRate}×
+                </span>
+              )}
+              {!isDesktop && (
+                <IconButton label="Add to playlist" size="md" onClick={() => openAddToPlaylist([track])}>
+                  <ListPlus />
+                </IconButton>
+              )}
+            </div>
           </div>
         </section>
 
         {/* Right: panes */}
-        <section className={cn('flex flex-col min-h-0', isDesktop ? 'h-[min(78vh,760px)]' : 'flex-1', !isDesktop && showPlayer && 'hidden')}>
-          {isDesktop && (
-            <div className="flex justify-center mb-4 shrink-0">
-              <SegmentedButton value={pane} onChange={setPane} options={PANES} showCheck={false} />
-            </div>
-          )}
+        <section className={cn('min-h-0 flex flex-col', isDesktop ? 'h-[min(78vh,860px)] self-center' : 'flex-1', showPlayer && !isDesktop && 'hidden')}>
           <div className="fullplayer-panel flex-1 min-h-0 flex flex-col rounded-2xl glass border border-outline-variant/40 overflow-hidden">
+            {isDesktop && (
+              <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3 shrink-0 border-b border-outline-variant/30">
+                <SegmentedButton value={pane} onChange={setPane} options={paneOptions} showCheck={false} size="sm" />
+              </div>
+            )}
             {activePane === 'lyrics' && <LyricsView trackId={track.id} className="flex-1" />}
             {activePane === 'queue' && <QueueList className="flex-1 pt-2" />}
             {activePane === 'info' && <DetailsPane track={track} />}

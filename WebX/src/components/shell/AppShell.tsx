@@ -15,6 +15,7 @@ import { SleepTimerDialog } from '../overlays/SleepTimerDialog'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useServerStatus } from '@/hooks/useServerStatus'
 import { useAuthStore } from '@/stores/authStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { useUiStore, toast } from '@/stores/uiStore'
 import { useLibraryStore } from '@/stores/libraryStore'
 import { useQueueStore } from '@/stores/queueStore'
@@ -26,6 +27,32 @@ const PUBLIC_ROUTES = ['/login', '/signup', '/setup']
 export const AppShell: React.FC = () => {
   useKeyboardShortcuts()
   useServerStatus()
+
+  // Interface size: CSS zoom on <body> scales the whole UI (incl. portals) without breaking 100% layouts
+  const uiScale = useSettingsStore((s) => s.uiScale)
+  useEffect(() => {
+    const z = Math.min(1.3, Math.max(0.8, Number(uiScale) || 1))
+    ;(document.body.style as CSSStyleDeclaration & { zoom?: string }).zoom = z === 1 ? '' : String(z)
+  }, [uiScale])
+
+  // Disable browser zoom (ctrl/cmd + wheel, ctrl/cmd + -/=/0, pinch) — interface size is controlled in Appearance
+  useEffect(() => {
+    const onWheel = (e: WheelEvent) => { if (e.ctrlKey || e.metaKey) e.preventDefault() }
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && ['-', '=', '+', '0', 'Minus', 'Equal'].includes(e.key)) e.preventDefault()
+    }
+    const onGesture = (e: Event) => e.preventDefault()
+    window.addEventListener('wheel', onWheel, { passive: false })
+    window.addEventListener('keydown', onKey)
+    document.addEventListener('gesturestart', onGesture)
+    document.addEventListener('gesturechange', onGesture)
+    return () => {
+      window.removeEventListener('wheel', onWheel)
+      window.removeEventListener('keydown', onKey)
+      document.removeEventListener('gesturestart', onGesture)
+      document.removeEventListener('gesturechange', onGesture)
+    }
+  }, [])
 
   const token = useAuthStore((s) => s.token)
   const sessionExpired = useAuthStore((s) => s.sessionExpired)

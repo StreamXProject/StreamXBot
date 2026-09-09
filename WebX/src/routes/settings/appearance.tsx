@@ -1,10 +1,10 @@
 import React, { useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Sun, Moon, MonitorSmartphone, Plus, Upload, Sparkles, Pencil, Copy, Download, Trash2 } from 'lucide-react'
+import { Sun, Moon, MonitorSmartphone, Plus, Upload, Sparkles, Pencil, Copy, Download, Trash2, ZoomIn } from 'lucide-react'
 import { SettingsPage, SettingsSection, SettingRow } from '@/components/settings/SettingsPrimitives'
 import { ThemeCard } from '@/components/settings/ThemeCard'
 import { ThemeEditorDialog } from '@/components/settings/ThemeEditorDialog'
-import { SegmentedButton, Switch, Button, Menu, Dialog, TextField } from '@/components/md3'
+import { SegmentedButton, Switch, Button, Menu, Dialog, TextField, Slider } from '@/components/md3'
 import { useThemeStore, type MotionPref } from '@/theme/themeStore'
 import type { ThemeDefinition, ThemeMode } from '@/theme/tokens'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -33,6 +33,7 @@ function AppearanceSettings() {
   const exportThemeJson = useThemeStore((s) => s.exportThemeJson)
   const compactRows = useSettingsStore((s) => s.compactRows)
   const showQualityBadges = useSettingsStore((s) => s.showQualityBadges)
+  const uiScale = useSettingsStore((s) => s.uiScale)
   const setSetting = useSettingsStore((s) => s.set)
 
   const [editor, setEditor] = useState<{ open: boolean; base: ThemeDefinition | null }>({ open: false, base: null })
@@ -112,10 +113,10 @@ function AppearanceSettings() {
         <div className="mb-3 px-1 flex items-end justify-between">
           <div>
             <h2 className="type-title-sm text-primary">Themes</h2>
-            <p className="type-body-sm text-on-surface-variant">Previews show the {resolvedMode} scheme. Right-click or use ⋮ for options.</p>
+            <p className="type-body-sm text-on-surface-variant">Previews show the {resolvedMode} scheme. Scroll sideways to browse. Right-click or use ⋮ for options.</p>
           </div>
         </div>
-        <div role="radiogroup" className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div role="radiogroup" className="theme-rail flex gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none -mx-1 px-1 pb-2">
           {builtIns.map((t) => (
             <ThemeCard key={t.id} theme={t} mode={resolvedMode} active={t.id === activeId} onSelect={() => setTheme(t.id)} onMenu={(a) => setMenu({ anchor: a, theme: t })} />
           ))}
@@ -123,7 +124,7 @@ function AppearanceSettings() {
         {custom.length > 0 && (
           <>
             <h3 className="type-title-sm text-on-surface-variant mt-6 mb-3 px-1">Your themes</h3>
-            <div role="radiogroup" className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div role="radiogroup" className="theme-rail flex gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none -mx-1 px-1 pb-2">
               {custom.map((t) => (
                 <ThemeCard key={t.id} theme={t} mode={resolvedMode} active={t.id === activeId} onSelect={() => setTheme(t.id)} onMenu={(a) => setMenu({ anchor: a, theme: t })} />
               ))}
@@ -139,6 +140,20 @@ function AppearanceSettings() {
       </section>
 
       <SettingsSection title="Motion & density">
+        <SettingRow
+          icon={<ZoomIn />}
+          label="Interface size"
+          description={`${Math.round(uiScale * 100)}% — scales text, controls and spacing across the app`}
+          stacked
+          control={
+            <div className="flex items-center gap-3 w-full">
+              <span className="type-label-md text-on-surface-variant">A</span>
+              <Slider value={uiScale} min={0.8} max={1.3} step={0.05} onChange={(v) => setSetting('uiScale', Math.round(v * 100) / 100)} className="flex-1" aria-label="Interface size" />
+              <span className="type-title-md text-on-surface-variant">A</span>
+              <button onClick={() => setSetting('uiScale', 1)} disabled={uiScale === 1} className="type-label-lg text-primary px-2 disabled:opacity-40">Reset</button>
+            </div>
+          }
+        />
         <SettingRow
           label="Motion"
           description="Reduced motion removes transitions and marquee text"
