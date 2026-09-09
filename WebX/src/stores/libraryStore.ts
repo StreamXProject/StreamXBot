@@ -136,7 +136,7 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
     }
     set({ loading: true, lastError: null })
     const results = await Promise.allSettled([
-      favApi.fetchFavourites(1, 500),
+      favApi.fetchAllFavourites(2000),
       plApi.fetchMyPlaylists(),
       favApi.fetchFavouriteArtistIds(),
     ])

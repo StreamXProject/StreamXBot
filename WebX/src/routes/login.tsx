@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
-import { Lock, User, Eye, EyeOff, Server, ArrowRight, ChevronDown, Check, X } from 'lucide-react'
-import { useAuthStore } from '@/stores/authStore'
+import { Lock, User, Eye, EyeOff, ArrowRight } from 'lucide-react'
+import { useAuthStore, sessionKind } from '@/stores/authStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { loginUser, loginWithServerPassword, fetchSetupStatus, setupOwnerPassword } from '@/api/auth'
 import { checkHealth } from '@/api/health'
-import { normalizeBaseUrl } from '@/api/client'
 import { AuthCard, ErrorBanner } from '@/components/auth/AuthCard'
 import { Button, TextField, SegmentedButton } from '@/components/md3'
 import { cn } from '@/lib/cn'
@@ -33,9 +32,8 @@ function LoginPage() {
   const login = useAuthStore((s) => s.login)
   const loginGuest = useAuthStore((s) => s.loginGuest)
   const token = useAuthStore((s) => s.token)
+  const user = useAuthStore((s) => s.user)
   const apiBaseUrl = useSettingsStore((s) => s.apiBaseUrl)
-  const setApiBaseUrl = useSettingsStore((s) => s.setApiBaseUrl)
-  const hasSeenWelcome = useSettingsStore((s) => s.hasSeenWelcome)
   const setSetting = useSettingsStore((s) => s.set)
 
   const [mode, setMode] = useState<Mode>(search.mode ?? (localStorage.getItem('webx_user') ? 'account' : 'guest'))
@@ -45,13 +43,18 @@ function LoginPage() {
   const [show, setShow] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [serverOpen, setServerOpen] = useState(!hasSeenWelcome)
-  const [serverDraft, setServerDraft] = useState(apiBaseUrl)
   const [server, setServer] = useState<{ ok: boolean; needsSetup: boolean; latency?: number; checking: boolean }>({ ok: false, needsSetup: false, checking: true })
 
+  // A guest session may intentionally open this page to upgrade to an account —
+  // only bounce away once the token actually changes (or if there's nothing to upgrade).
+  const initialToken = useRef(token)
+  const initialUser = useRef(user)
   useEffect(() => {
-    if (token) navigate({ to: (search.redirect as '/') || '/', replace: true })
-  }, [token, navigate, search.redirect])
+    if (!token) return
+    const upgradingGuest = search.mode === 'account' && token === initialToken.current && sessionKind(initialToken.current, initialUser.current) === 'guest'
+    if (upgradingGuest) return
+    navigate({ to: (search.redirect as '/') || '/', replace: true })
+  }, [token, navigate, search.redirect, search.mode])
 
   // Probe the server so the first screen tells the truth about connectivity
   useEffect(() => {
@@ -73,12 +76,6 @@ function LoginPage() {
       cancelled = true
     }
   }, [apiBaseUrl])
-
-  const applyServer = () => {
-    const base = normalizeBaseUrl(serverDraft)
-    if (base) setApiBaseUrl(base)
-    setServerOpen(false)
-  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -127,28 +124,6 @@ function LoginPage() {
         )
       }
     >
-      {/* Server picker */}
-      <div className="mb-5 rounded-sm bg-surface-container">
-        <button type="button" onClick={() => setServerOpen((o) => !o)} className="w-full flex items-center gap-3 px-3 h-12 text-left state-layer rounded-sm">
-          <Server className="size-4 text-on-surface-variant shrink-0" />
-          <span className="flex-1 min-w-0">
-            <span className="block type-label-md text-on-surface-variant">Server</span>
-            <span className="block type-body-md text-on-surface truncate font-mono text-[13px]">{apiBaseUrl}</span>
-          </span>
-          <span className={cn('inline-flex items-center gap-1 type-label-md', server.checking ? 'text-on-surface-variant' : server.ok ? 'text-tertiary' : 'text-error')}>
-            {server.checking ? <span className="size-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" /> : server.ok ? <Check className="size-4" /> : <X className="size-4" />}
-            {server.checking ? '' : server.ok ? `${server.latency} ms` : 'offline'}
-          </span>
-          <ChevronDown className={cn('size-4 text-on-surface-variant transition-transform', serverOpen && 'rotate-180')} />
-        </button>
-        {serverOpen && (
-          <div className="px-3 pb-3 flex gap-2">
-            <TextField value={serverDraft} onChange={(e) => setServerDraft(e.target.value)} placeholder="http://localhost:8000" containerClassName="flex-1" className="font-mono" spellCheck={false} autoCapitalize="off" onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), applyServer())} />
-            <Button type="button" variant="tonal" onClick={applyServer} className="h-14">Use</Button>
-          </div>
-        )}
-      </div>
-
       {!server.needsSetup && (
         <SegmentedButton<Mode>
           value={mode}

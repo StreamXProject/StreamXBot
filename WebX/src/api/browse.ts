@@ -68,7 +68,17 @@ export async function fetchTopics(signal?: AbortSignal): Promise<Topic[]> {
     .filter((t): t is Topic => t !== null)
 }
 
+export const TOPIC_PAGE_SIZE = 100 // backend caps /topics/{name}/tracks at limit<=100
+
 export async function fetchTopicTracks(name: string, signal?: AbortSignal): Promise<Track[]> {
-  const raw = await http.get<{ items?: unknown[] } | unknown[]>(API_ENDPOINTS.TOPIC_TRACKS(name), { signal, params: { limit: 200 } })
-  return parseTracks(Array.isArray(raw) ? raw : raw?.items)
+  const res = await fetchTopicTracksPage(name, 1, TOPIC_PAGE_SIZE, signal)
+  return res.items
+}
+
+export async function fetchTopicTracksPage(name: string, page = 1, perPage = TOPIC_PAGE_SIZE, signal?: AbortSignal): Promise<{ items: Track[]; page: number; per_page: number; total: number }> {
+  const safe = Math.min(Math.max(1, perPage), TOPIC_PAGE_SIZE)
+  const raw = await http.get<{ items?: unknown[]; page?: number; per_page?: number; total?: number } | unknown[]>(API_ENDPOINTS.TOPIC_TRACKS(name), { signal, params: { page, limit: safe } })
+  const items = parseTracks(Array.isArray(raw) ? raw : raw?.items)
+  const obj = Array.isArray(raw) ? {} : raw ?? {}
+  return { items, page: obj.page ?? page, per_page: obj.per_page ?? safe, total: obj.total ?? items.length }
 }

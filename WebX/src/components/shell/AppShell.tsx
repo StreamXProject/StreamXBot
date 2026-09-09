@@ -72,9 +72,39 @@ export const AppShell: React.FC = () => {
     }
   }, [token])
 
-  // Reset scroll on navigation
+  // Remember scroll position per route; restore it when coming back, otherwise start at top
+  const scrollPositions = useRef<Map<string, number>>(new Map())
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 0 })
+    const el = scrollRef.current
+    if (!el) return
+    const saved = scrollPositions.current.get(pathname) ?? 0
+    if (saved <= 0) {
+      el.scrollTo({ top: 0 })
+      return
+    }
+    // Content may still be loading — retry for a short while until the page is tall enough
+    let raf = 0
+    let tries = 0
+    const attempt = () => {
+      const node = scrollRef.current
+      if (!node) return
+      node.scrollTop = saved
+      const reached = Math.abs(node.scrollTop - saved) < 2
+      if (!reached && tries++ < 90) raf = requestAnimationFrame(attempt)
+    }
+    raf = requestAnimationFrame(attempt)
+    return () => cancelAnimationFrame(raf)
+  }, [pathname])
+
+  // Keep the saved position fresh while the user scrolls
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onScroll = () => {
+      scrollPositions.current.set(pathname, el.scrollTop)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
   }, [pathname])
 
   // Stop painting the shell while the full player covers it

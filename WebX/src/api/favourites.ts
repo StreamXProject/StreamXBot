@@ -3,13 +3,30 @@ import { http } from './client'
 import { parseTracks, type Track } from '@/schemas/track'
 
 export async function fetchFavouriteIds(signal?: AbortSignal): Promise<string[]> {
-  const data = await http.get<{ ids?: string[] }>(API_ENDPOINTS.ME_FAVOURITE_IDS, { params: { limit: 5000 }, signal })
+  const data = await http.get<{ ids?: string[] }>(API_ENDPOINTS.ME_FAVOURITE_IDS, { params: { limit: 1000 }, signal })
   return Array.isArray(data?.ids) ? data.ids : []
 }
 
-export async function fetchFavourites(page = 1, limit = 200, signal?: AbortSignal): Promise<{ items: Track[]; total: number }> {
-  const data = await http.get<{ items?: unknown[]; total?: number }>(API_ENDPOINTS.ME_FAVOURITES, { params: { page, limit }, signal })
+// Backend caps /me/favourites at limit<=100 — never send more than that.
+const FAVOURITES_PAGE_MAX = 100
+
+export async function fetchFavourites(page = 1, limit = 100, signal?: AbortSignal): Promise<{ items: Track[]; total: number }> {
+  const safeLimit = Math.min(Math.max(1, limit), FAVOURITES_PAGE_MAX)
+  const data = await http.get<{ items?: unknown[]; total?: number }>(API_ENDPOINTS.ME_FAVOURITES, { params: { page, limit: safeLimit }, signal })
   return { items: parseTracks(data?.items), total: data?.total ?? 0 }
+}
+
+/** Fetch every favourite by walking pages under the backend cap. */
+export async function fetchAllFavourites(max = 2000, signal?: AbortSignal): Promise<{ items: Track[]; total: number }> {
+  const items: Track[] = []
+  let total = 0
+  for (let page = 1; items.length < max; page++) {
+    const res = await fetchFavourites(page, FAVOURITES_PAGE_MAX, signal)
+    items.push(...res.items)
+    total = res.total || items.length
+    if (res.items.length < FAVOURITES_PAGE_MAX || items.length >= total) break
+  }
+  return { items, total: Math.max(total, items.length) }
 }
 
 export async function addFavourite(trackId: string): Promise<void> {

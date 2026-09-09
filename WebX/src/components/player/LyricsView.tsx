@@ -113,7 +113,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({ trackId, className, size
                 'text-left py-2 px-3 -mx-3 rounded-lg transition-[color,opacity,transform,filter] duration-300 ease-emphasized origin-left',
                 size === 'lg' ? 'text-2xl sm:text-3xl font-bold tracking-tight leading-snug' : 'text-lg font-semibold leading-snug',
                 isActive ? 'text-on-surface opacity-100 scale-[1.02]' : isPast ? 'text-on-surface-variant opacity-45 hover:opacity-80' : 'text-on-surface-variant opacity-55 hover:opacity-90',
-                line.text === '' && 'h-6'
+                line.text === '' && (isActive ? 'my-2 leading-none' : 'h-6')
               )}
             >
               {line.text || (isActive ? '♪' : '')}

@@ -1,11 +1,11 @@
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query'
-import { fetchBrowseTracks, fetchFeaturedMixes, fetchMixTracks, fetchShuffle, fetchTopics, fetchTopicTracks } from '@/api/browse'
+import { fetchBrowseTracks, fetchFeaturedMixes, fetchMixTracks, fetchShuffle, fetchTopics, fetchTopicTracks, fetchTopicTracksPage } from '@/api/browse'
 import { fetchAlbums, fetchAlbumById } from '@/api/albums'
 import { fetchArtists, fetchArtistById } from '@/api/artists'
 import { fetchTrackLyrics } from '@/api/lyrics'
 import { searchAll } from '@/api/search'
 import { fetchHistory, fetchTopPlayed } from '@/api/favourites'
-import { fetchPlaylistTracks, fetchSharedPlaylist } from '@/api/playlists'
+import { fetchAllPlaylistTracks, fetchSharedPlaylist } from '@/api/playlists'
 import { fetchMe } from '@/api/auth'
 import { useAuthStore, sessionKind } from '@/stores/authStore'
 
@@ -119,7 +119,7 @@ export function useTopPlayed(limit = 50) {
 }
 
 export function usePlaylistTracks(playlistId: string) {
-  return useQuery({ queryKey: QUERY_KEYS.PLAYLIST_TRACKS(playlistId), queryFn: ({ signal }) => fetchPlaylistTracks(playlistId, 1, 500, signal), enabled: Boolean(playlistId) })
+  return useQuery({ queryKey: QUERY_KEYS.PLAYLIST_TRACKS(playlistId), queryFn: ({ signal }) => fetchAllPlaylistTracks(playlistId, 5000, signal), enabled: Boolean(playlistId) })
 }
 
 export function useSharedPlaylist(playlistId: string) {
@@ -138,4 +138,14 @@ export function useTopics() {
 
 export function useTopicTracks(name: string) {
   return useQuery({ queryKey: QUERY_KEYS.TOPIC_TRACKS(name), queryFn: ({ signal }) => fetchTopicTracks(name, signal), enabled: Boolean(name) })
+}
+
+export function useInfiniteTopicTracks(name: string) {
+  return useInfiniteQuery({
+    queryKey: [...QUERY_KEYS.TOPIC_TRACKS(name), 'infinite'],
+    queryFn: ({ pageParam, signal }) => fetchTopicTracksPage(name, pageParam, undefined, signal),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.items.length > 0 && last.page * last.per_page < last.total ? last.page + 1 : undefined),
+    enabled: Boolean(name),
+  })
 }

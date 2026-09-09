@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Play, Shuffle, Clock, Sparkles, Flame } from 'lucide-react'
+import { Play, Shuffle, Clock, Flame } from 'lucide-react'
 import { useBrowseTracks, useFeaturedMixes, useAlbums, useArtists, useHistory } from '@/hooks/useQueries'
 import { useQueueStore } from '@/stores/queueStore'
 import { useAuthStore, sessionKind } from '@/stores/authStore'
@@ -17,6 +17,7 @@ import { Artwork } from '@/components/common/Artwork'
 import { Button } from '@/components/md3'
 import { toast } from '@/stores/uiStore'
 import { cn } from '@/lib/cn'
+import { seedFromImage } from '@/theme'
 
 export const Route = createFileRoute('/')({
   component: HomePage,
@@ -69,6 +70,15 @@ function HomePage() {
   const [shuffling, setShuffling] = useState(false)
 
   const tracks = browse.data?.items ?? []
+  const heroCover = tracks[0]?.cover_url ?? null
+  const [heroColor, setHeroColor] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    setHeroColor(null)
+    if (!heroCover) return
+    void seedFromImage(heroCover).then((c) => { if (alive) setHeroColor(c) })
+    return () => { alive = false }
+  }, [heroCover])
   const recent = useMemo(() => (history.data && history.data.length ? history.data : recentLocal).slice(0, 12), [history.data, recentLocal])
 
   const playMix = async (mix: FeaturedMix) => {
@@ -167,7 +177,7 @@ function HomePage() {
               <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/40 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-5 flex items-end justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="type-label-md text-primary inline-flex items-center gap-1"><Sparkles className="size-3.5" /> Just added</p>
+                  <p className="type-label-md text-primary inline-flex items-center gap-1" style={heroColor ? { color: heroColor } : undefined}><Clock className="size-3.5" /> Just added</p>
                   <h3 className="type-headline-sm text-on-surface truncate mt-1">{hero.title}</h3>
                   <p className="type-body-md text-on-surface-variant truncate">{hero.artist}{hero.album ? ` · ${hero.album}` : ''}</p>
                 </div>

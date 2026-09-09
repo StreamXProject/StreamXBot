@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { Search, LogOut, Settings, User as UserIcon, Wifi, WifiOff, ChevronLeft, Music2, Keyboard, Moon } from 'lucide-react'
+import { Search, LogOut, Settings, User as UserIcon, ChevronLeft, Music2, Keyboard, Moon } from 'lucide-react'
 import { useAuthStore, sessionKind } from '@/stores/authStore'
 import { useUiStore } from '@/stores/uiStore'
 import { Menu, IconButton } from '@/components/md3'
@@ -38,8 +38,6 @@ export const TopAppBar: React.FC = () => {
   const logout = useAuthStore((s) => s.logout)
   const kind = sessionKind(token, user)
   const setCommandPalette = useUiStore((s) => s.setCommandPalette)
-  const serverStatus = useUiStore((s) => s.serverStatus)
-  const latency = useUiStore((s) => s.serverLatencyMs)
   const setSleepTimerOpen = useUiStore((s) => s.setSleepTimerOpen)
   const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen)
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
@@ -81,14 +79,6 @@ export const TopAppBar: React.FC = () => {
 
       {/* Right: status + account */}
       <div className="flex items-center justify-end gap-1 md:w-1/4">
-        <button
-          onClick={() => navigate({ to: '/settings/server' })}
-          title={serverStatus === 'online' ? `Server online${latency != null ? ` · ${latency} ms` : ''}` : serverStatus === 'offline' ? 'Server unreachable — open server settings' : 'Checking server…'}
-          className="state-layer hidden sm:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full type-label-md text-on-surface-variant"
-        >
-          <span className={cn('size-2 rounded-full', serverStatus === 'online' ? 'bg-tertiary' : serverStatus === 'offline' ? 'bg-error' : 'bg-outline animate-pulse')} />
-          {serverStatus === 'offline' ? <WifiOff className="size-4" /> : <Wifi className="size-4" />}
-        </button>
 
         {kind === 'none' ? (
           <button onClick={() => navigate({ to: '/login' })} className="state-layer h-10 px-4 rounded-full bg-secondary-container text-on-secondary-container type-label-lg inline-flex items-center gap-2">

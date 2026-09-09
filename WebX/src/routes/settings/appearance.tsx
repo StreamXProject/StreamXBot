@@ -76,7 +76,6 @@ function AppearanceSettings() {
   return (
     <SettingsPage
       title="Appearance"
-      description="Every theme is a small seed → the engine derives the full Material 3 tonal palette, so light and dark stay consistent."
       actions={
         <div className="flex gap-2 shrink-0">
           <Button variant="tonal" icon={<Upload />} onClick={() => setImportOpen(true)}>Import</Button>
@@ -166,12 +165,12 @@ function AppearanceSettings() {
         items={
           menu
             ? [
-                { id: 'apply', label: 'Apply', icon: <Sparkles />, onSelect: () => setTheme(menu.theme.id) },
-                { id: 'edit', label: menu.theme.builtIn ? 'Customize (creates a copy)' : 'Edit', icon: <Pencil />, onSelect: () => setEditor({ open: true, base: menu.theme }) },
-                { id: 'dup', label: 'Duplicate', icon: <Copy />, onSelect: () => { const c = duplicateTheme(menu.theme.id); if (c) toast(`Created “${c.name}”`) } },
-                { id: 'export', label: 'Export JSON', icon: <Download />, onSelect: () => exportTheme(menu.theme) },
-                ...(!menu.theme.builtIn ? [{ id: 'd', label: '', divider: true }, { id: 'del', label: 'Delete', icon: <Trash2 />, destructive: true, onSelect: () => { removeUserTheme(menu.theme.id); toast('Theme deleted') } }] : []),
-              ]
+              { id: 'apply', label: 'Apply', icon: <Sparkles />, onSelect: () => setTheme(menu.theme.id) },
+              { id: 'edit', label: menu.theme.builtIn ? 'Customize (creates a copy)' : 'Edit', icon: <Pencil />, onSelect: () => setEditor({ open: true, base: menu.theme }) },
+              { id: 'dup', label: 'Duplicate', icon: <Copy />, onSelect: () => { const c = duplicateTheme(menu.theme.id); if (c) toast(`Created “${c.name}”`) } },
+              { id: 'export', label: 'Export JSON', icon: <Download />, onSelect: () => exportTheme(menu.theme) },
+              ...(!menu.theme.builtIn ? [{ id: 'd', label: '', divider: true }, { id: 'del', label: 'Delete', icon: <Trash2 />, destructive: true, onSelect: () => { removeUserTheme(menu.theme.id); toast('Theme deleted') } }] : []),
+            ]
             : []
         }
       />

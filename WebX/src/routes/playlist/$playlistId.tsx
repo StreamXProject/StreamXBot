@@ -36,6 +36,21 @@ function PlaylistPage() {
   const togglePlay = usePlayerStore((s) => s.togglePlay)
   const [menu, setMenu] = useState<HTMLElement | null>(null)
   const [renaming, setRenaming] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const doDelete = async () => {
+    setDeleting(true)
+    try {
+      await deletePlaylist(playlistId)
+      setConfirmingDelete(false)
+      toast('Playlist deleted')
+      navigate({ to: '/library', search: { tab: 'playlists' } })
+    } catch (e) {
+      toast(`Couldn't delete playlist: ${(e as Error).message}`, { variant: 'error' })
+    } finally {
+      setDeleting(false)
+    }
+  }
   const [name, setName] = useState(playlist?.name ?? '')
 
   const tracks = data?.items ?? []
@@ -104,17 +119,25 @@ function PlaylistPage() {
             label: 'Delete playlist',
             icon: <Trash2 />,
             destructive: true,
-            onSelect: async () => {
-              if (confirmDestructive && !confirm(`Delete “${playlist?.name}”? This cannot be undone.`)) return
-              await deletePlaylist(playlistId)
-              toast('Playlist deleted')
-              navigate({ to: '/library', search: { tab: 'playlists' } })
+            onSelect: () => {
+              if (confirmDestructive) setConfirmingDelete(true)
+              else void doDelete()
             },
           },
         ]}
       />
       <Dialog open={renaming} onClose={() => setRenaming(false)} title="Rename playlist" actions={<><Button variant="text" onClick={() => setRenaming(false)}>Cancel</Button><Button disabled={!name.trim()} onClick={async () => { await renamePlaylist(playlistId, name.trim()); setRenaming(false) }}>Save</Button></>}>
         <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+      </Dialog>
+      <Dialog
+        open={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        title="Delete playlist?"
+        icon={<Trash2 />}
+        size="sm"
+        actions={<><Button variant="text" onClick={() => setConfirmingDelete(false)}>Cancel</Button><Button variant="filled" className="bg-error text-on-error" loading={deleting} onClick={() => void doDelete()}>Delete</Button></>}
+      >
+        <p className="type-body-md text-on-surface-variant">“{playlist?.name}” will be permanently removed. This cannot be undone.</p>
       </Dialog>
     </PageContainer>
   )
