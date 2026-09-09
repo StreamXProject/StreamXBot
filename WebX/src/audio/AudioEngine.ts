@@ -51,6 +51,26 @@ export class AudioEngine {
   private constructor() {
     if (typeof window !== 'undefined' && typeof Audio !== 'undefined') {
       this.audio = new Audio()
+      this.audio.setAttribute('playsinline', 'true')
+      this.audio.setAttribute('webkit-playsinline', 'true')
+      if (typeof document !== 'undefined') {
+        const attach = () => {
+          if (document.body && !document.body.contains(this.audio)) {
+            this.audio.style.position = 'fixed'
+            this.audio.style.width = '0'
+            this.audio.style.height = '0'
+            this.audio.style.opacity = '0'
+            this.audio.style.pointerEvents = 'none'
+            this.audio.style.zIndex = '-1'
+            document.body.appendChild(this.audio)
+          }
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', attach, { once: true })
+        } else {
+          attach()
+        }
+      }
     } else {
       this.audio = {
         preload: 'auto',
@@ -67,11 +87,11 @@ export class AudioEngine {
         addEventListener: () => {},
         removeEventListener: () => {},
         removeAttribute: () => {},
+        setAttribute: () => {},
       } as unknown as HTMLAudioElement
     }
     this.audio.preload = 'auto'
     this.audio.volume = 0.8
-    ;(this.audio as HTMLAudioElement & { crossOrigin?: string | null }).crossOrigin = null
     this.setupAudioListeners()
   }
 
@@ -195,9 +215,15 @@ export class AudioEngine {
       if (this.prefetch && this.prefetchTrackId === track.id && this.prefetch.src === url && this.prefetch.readyState >= 2) {
         // Swapping elements is more expensive than letting the browser use its HTTP cache; just set src.
       }
-      if (this.audio.src !== url) {
+      const currentSrc = this.audio.src || ''
+      const targetSrc = typeof window !== 'undefined' && url ? new URL(url, window.location.href).href : url
+      if (currentSrc !== targetSrc) {
         this.audio.src = url
-        this.audio.load()
+        try {
+          this.audio.currentTime = 0
+        } catch {
+          /* ignore */
+        }
       }
       if (startAt > 0) {
         const seekOnce = () => {
@@ -264,11 +290,20 @@ export class AudioEngine {
     if (this.prefetchTrackId === track.id) return
     this.resolver.warm(track.id).catch(() => {})
     if (this.resolver.needsTranscode(track)) return
+
+    // On mobile / iOS, avoid creating concurrent <audio> decoders which can stall the primary audio stream
+    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+    if (isMobile) {
+      return
+    }
+
     try {
       if (!this.prefetch) {
         this.prefetch = new Audio()
         this.prefetch.preload = 'auto'
         this.prefetch.muted = true
+        this.prefetch.setAttribute('playsinline', 'true')
+        this.prefetch.setAttribute('webkit-playsinline', 'true')
       }
       this.prefetch.src = this.resolver.url(track)
       this.prefetch.load()
