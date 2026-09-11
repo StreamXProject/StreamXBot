@@ -77,6 +77,8 @@
 
   /* App layout */
   --webx-player-height: 88px;
+  --webx-mini-player-height: 64px;
+  --webx-nav-height: 64px;
   --webx-rail-width: 88px;
   --webx-drawer-width: 272px;
   --webx-topbar-height: 64px;
@@ -163,13 +165,21 @@
 @layer base {
   *, *::before, *::after { box-sizing: border-box; }
 
-  html, body, #root {
+  html {
     height: 100%;
-    width: 100%;
-    overflow: hidden;
-    position: fixed;
-    inset: 0;
+    background-color: var(--md-sys-color-surface);
+    overscroll-behavior: none;
+  }
+
+  body, #root {
     margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100dvh;
+    overflow: hidden;
+  }
+
+  body {
     background-color: var(--md-sys-color-surface);
     color: var(--md-sys-color-on-surface);
     font-family: var(--md-ref-typeface-plain);
@@ -182,6 +192,14 @@
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior: none;
   }
+
+  @media (display-mode: standalone) {
+    body, #root {
+      min-height: 100vh;
+    }
+  }
+  /* Long-press opens our own context menu on touch devices — suppress the OS callout */
+  body { -webkit-touch-callout: none; }
 
   body { user-select: none; }
   input, textarea, [contenteditable] { user-select: text; }
@@ -388,6 +406,51 @@
       opacity var(--md-sys-motion-duration-short4) linear,
       visibility 0s;
   }
+  /* Equalizer — vertical range inputs */
+  .eq-slider {
+    appearance: none;
+    -webkit-appearance: none;
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 28px;
+    height: 100%;
+    background: transparent;
+    cursor: pointer;
+    touch-action: none;
+  }
+  .eq-slider::-webkit-slider-runnable-track {
+    width: 4px;
+    height: 100%;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-on-surface) 15%, transparent);
+  }
+  .eq-slider::-moz-range-track {
+    width: 4px;
+    height: 100%;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-on-surface) 15%, transparent);
+  }
+  .eq-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    margin-left: -8px;
+    border-radius: 999px;
+    background: var(--md-sys-color-primary);
+    border: 3px solid var(--md-sys-color-surface);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  }
+  .eq-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: var(--md-sys-color-primary);
+    border: 3px solid var(--md-sys-color-surface);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  }
+  .eq-slider:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: 2px; border-radius: 999px; }
+
   /* Now-playing artwork: soft tinted glow, gently shrinks while paused */
   .np-art {
     transition: transform var(--md-sys-motion-duration-medium4) var(--md-sys-motion-easing-emphasized), filter var(--md-sys-motion-duration-medium4) linear;

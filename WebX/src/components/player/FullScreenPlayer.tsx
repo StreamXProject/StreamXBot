@@ -164,7 +164,7 @@ export const FullScreenPlayer: React.FC = () => {
 
   const TitleBlock = (
     <div className="min-w-0 flex-1">
-      <h1 className={cn('text-on-surface truncate', isDesktop ? 'type-headline-md' : 'type-headline-sm')}>{track.title}</h1>
+      <h1 className={cn('text-on-surface truncate', isDesktop ? 'type-headline-md' : 'type-title-lg sm:type-headline-sm')}>{track.title}</h1>
       <p className="type-body-lg text-on-surface-variant truncate mt-0.5">
         {track.artist_id ? (
           <Link to="/artist/$artistId" params={{ artistId: track.artist_id }} onClick={close} className="hover:underline hover:text-on-surface">{track.artist}</Link>
@@ -211,15 +211,17 @@ export const FullScreenPlayer: React.FC = () => {
 
       {/* Top bar / drag handle */}
       <header
-        className="relative z-10 flex items-center justify-between gap-2 px-3 sm:px-5 h-16 shrink-0 touch-none"
+        className="relative z-10 flex items-center justify-between gap-2 px-3 sm:px-5 h-[calc(4rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] shrink-0 touch-none"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
-        <IconButton label="Minimize" size="lg" onClick={close}>
-          <ChevronDown />
-        </IconButton>
+        <div className="w-[88px] sm:w-[104px] shrink-0 flex justify-start">
+          <IconButton label="Minimize" size="lg" onClick={close}>
+            <ChevronDown />
+          </IconButton>
+        </div>
         <div className="flex-1 min-w-0 flex justify-center px-2">
           <div className="inline-flex items-center gap-2 h-9 px-3.5 rounded-full glass border border-outline-variant/40 max-w-full">
             <Radio className="size-4 text-primary shrink-0" />
@@ -227,8 +229,8 @@ export const FullScreenPlayer: React.FC = () => {
             <span className="type-label-lg text-on-surface truncate">{context?.title ?? track.album ?? 'Your library'}</span>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          <IconButton label="Add to playlist" size="lg" onClick={() => openAddToPlaylist([track])} className="hidden sm:inline-flex">
+        <div className="w-[88px] sm:w-[104px] shrink-0 flex items-center justify-end gap-1">
+          <IconButton label="Add to playlist" size="lg" onClick={() => openAddToPlaylist([track])}>
             <ListPlus />
           </IconButton>
           <IconButton label="More" size="lg" onClick={(e) => setMenuAnchor(e.currentTarget)}>
@@ -261,27 +263,27 @@ export const FullScreenPlayer: React.FC = () => {
           'relative z-10 flex-1 min-h-0 w-full max-w-[1440px] mx-auto px-5 sm:px-8',
           isDesktop ? 'grid grid-cols-[minmax(360px,42%)_minmax(0,1fr)] gap-10 xl:gap-16 items-center pb-8' : 'flex flex-col'
         )}
-        style={isDesktop ? undefined : { paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 20px)' }}
+        style={{ paddingBottom: isDesktop ? 'max(env(safe-area-inset-bottom, 0px), 2rem)' : 'max(env(safe-area-inset-bottom, 0px), 20px)' }}
       >
         {/* Left: artwork + controls */}
         <section className={cn('flex flex-col justify-center min-h-0 w-full', isDesktop ? 'max-w-[540px] mx-auto' : 'flex-1', !showPlayer && 'hidden')}>
-          <div className={cn('mx-auto w-full min-h-0', isDesktop ? 'max-w-[460px]' : 'flex-1 flex items-center justify-center py-2')}>
+          <div className={cn('mx-auto w-full min-h-0', isDesktop ? 'max-w-[460px]' : 'flex-1 flex items-center justify-center py-4')}>
             <div
               className={cn('np-art relative', isDesktop ? 'w-full' : 'max-h-full max-w-full')}
               data-playing={isPlaying}
-              style={isDesktop ? undefined : { width: 'min(78vw, 50vh, 480px)' }}
+              style={isDesktop ? undefined : { width: 'min(88vw, 56vh, 520px)' }}
             >
               <Artwork src={track.cover_url} alt={track.title} priority className="aspect-square w-full rounded-xl" />
             </div>
           </div>
 
-          <div className="mt-6 sm:mt-8 flex items-center gap-3 shrink-0">
+          <div className="mt-4 sm:mt-8 flex items-center gap-3 shrink-0">
             {TitleBlock}
             {LikeButton}
           </div>
 
-          <Scrubber size="lg" className="mt-5 shrink-0" />
-          <PlaybackControls size="lg" className="mt-3 shrink-0" />
+          <Scrubber size="lg" className="mt-4 sm:mt-5 shrink-0" />
+          <PlaybackControls size="lg" className="mt-2 sm:mt-3 shrink-0" />
 
           {/* Secondary row: volume + session chips */}
           <div className="mt-4 sm:mt-5 shrink-0 hidden sm:flex items-center justify-between gap-4">
@@ -296,11 +298,6 @@ export const FullScreenPlayer: React.FC = () => {
                 <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-secondary-container text-on-secondary-container type-label-md">
                   <Gauge className="size-3.5" /> {playbackRate}×
                 </span>
-              )}
-              {!isDesktop && (
-                <IconButton label="Add to playlist" size="md" onClick={() => openAddToPlaylist([track])}>
-                  <ListPlus />
-                </IconButton>
               )}
             </div>
           </div>

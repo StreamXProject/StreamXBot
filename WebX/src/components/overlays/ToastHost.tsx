@@ -8,7 +8,7 @@ export const ToastHost: React.FC = () => {
   const dismiss = useUiStore((s) => s.dismissToast)
   if (toasts.length === 0) return null
   return (
-    <div className="fixed left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-none w-[min(92vw,560px)]" style={{ bottom: 'calc(var(--webx-player-height) + 5rem + env(safe-area-inset-bottom, 0px))' }}>
+    <div className="fixed left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-none w-[min(92vw,560px)] bottom-[calc(var(--webx-mini-player-height)+var(--webx-nav-height)+env(safe-area-inset-bottom,0px)+1rem)] md:bottom-[calc(var(--webx-player-height)+1rem)]">
       {toasts.map((t) => (
         <div
           key={t.id}

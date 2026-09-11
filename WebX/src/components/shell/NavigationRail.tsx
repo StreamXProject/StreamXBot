@@ -75,7 +75,7 @@ export const NavigationRail: React.FC = () => {
       )}
     >
       {/* Brand + toggle */}
-      <div className={cn('flex items-center h-[var(--webx-topbar-height)] shrink-0', expanded ? 'px-5 justify-between' : 'justify-center')}>
+      <div className={cn('flex items-center h-[calc(var(--webx-topbar-height)+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] shrink-0', expanded ? 'px-5 justify-between' : 'justify-center')}>
         {expanded && (
           <Link to="/" className="flex items-center gap-2.5 min-w-0">
             <span className="size-8 rounded-md bg-primary text-on-primary flex items-center justify-center shrink-0">

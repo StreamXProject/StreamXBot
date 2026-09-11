@@ -47,7 +47,7 @@ export const TopAppBar: React.FC = () => {
   const isDetail = !title
 
   return (
-    <header className="glass h-[var(--webx-topbar-height)] shrink-0 flex items-center gap-2 px-3 md:px-5 z-10 border-b border-outline-variant/40">
+    <header className="glass h-[calc(var(--webx-topbar-height)+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] shrink-0 flex items-center gap-2 px-3 md:px-5 z-10 border-b border-outline-variant/40">
       {/* Left: back on detail pages, brand on mobile */}
       <div className="flex items-center gap-1 min-w-0 md:w-1/4">
         {isDetail && canGoBack ? (

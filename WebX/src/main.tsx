@@ -7,6 +7,26 @@ import './index.css'
 // Apply the persisted theme before the first paint
 import './theme/themeStore'
 import { ApiError } from './api/client'
+import { registerServiceWorker } from './hooks/usePwa'
+import { startScrobbler } from './services/lastfm'
+import { startDiscordPresence } from './services/discordPresence'
+import { equalizer } from './audio/Equalizer'
+import { initAudioUnlock } from './audio/audioUnlock'
+import { useSettingsStore } from './stores/settingsStore'
+
+// Register global gesture unlock for browser Autoplay Policy
+initAudioUnlock()
+
+// Background services (all idempotent, all opt-in via settings)
+startScrobbler()
+startDiscordPresence()
+{
+  const s = useSettingsStore.getState()
+  equalizer.setGains(s.eqGains)
+  equalizer.setPreamp(s.eqPreamp)
+  if (s.eqEnabled) equalizer.setEnabled(true)
+}
+if (import.meta.env.PROD) registerServiceWorker()
 
 const queryClient = new QueryClient({
   defaultOptions: {

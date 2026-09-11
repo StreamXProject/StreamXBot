@@ -1,6 +1,6 @@
 import React from 'react'
 import { createFileRoute, Link, Outlet, useRouterState } from '@tanstack/react-router'
-import { Palette, SlidersHorizontal, Server, User, Database, Keyboard, Info, ChevronRight } from 'lucide-react'
+import { Palette, SlidersHorizontal, Server, User, Database, Keyboard, Info, ChevronRight, AudioLines, Plug, Smartphone } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useIsDesktop } from '@/hooks/useMediaQuery'
 import { useUiStore } from '@/stores/uiStore'
@@ -11,13 +11,16 @@ export const Route = createFileRoute('/settings')({
 })
 
 export const SETTINGS_SECTIONS = [
-  { to: '/settings/appearance', label: 'Appearance', description: 'Themes, color mode, motion', icon: Palette },
-  { to: '/settings/playback', label: 'Playback', description: 'Streaming format, prefetch, speed', icon: SlidersHorizontal },
-  { to: '/settings/server', label: 'Server & endpoints', description: 'API address, connection, demo mode', icon: Server },
-  { to: '/settings/account', label: 'Account', description: 'Profile, session, passwords', icon: User },
+  { to: '/settings/appearance', label: 'Appearance', description: 'Themes, colors, motion', icon: Palette },
+  { to: '/settings/playback', label: 'Playback', description: 'Format, prefetch, speed', icon: SlidersHorizontal },
+  { to: '/settings/equalizer', label: 'Equalizer', description: 'Bands and presets', icon: AudioLines },
+  { to: '/settings/integrations', label: 'Integrations', description: 'Last.fm, Discord', icon: Plug },
+  { to: '/settings/app', label: 'App & offline', description: 'Install, updates, storage', icon: Smartphone },
+  { to: '/settings/server', label: 'Server & endpoints', description: 'Address, connection, demo', icon: Server },
+  { to: '/settings/account', label: 'Account', description: 'Profile, session, password', icon: User },
   { to: '/settings/library', label: 'Library & data', description: 'Sync, cache, export', icon: Database },
-  { to: '/settings/shortcuts', label: 'Keyboard shortcuts', description: 'Speed up common actions', icon: Keyboard },
-  { to: '/settings/about', label: 'About', description: 'Version and credits', icon: Info },
+  { to: '/settings/shortcuts', label: 'Keyboard shortcuts', description: 'Key bindings', icon: Keyboard },
+  { to: '/settings/about', label: 'About', description: 'Version, credits', icon: Info },
 ] as const
 
 function SettingsLayout() {

@@ -1,12 +1,13 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Heart, Mic2, ListMusic, Maximize2, Play, Pause, SkipForward, Music2 } from 'lucide-react'
+import { Heart, Mic2, ListMusic, Maximize2, Play, Pause, SkipForward, SkipBack, Music2 } from 'lucide-react'
 import { usePlayerStore } from '@/stores/playerStore'
 import { useQueueStore } from '@/stores/queueStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useLibraryStore } from '@/stores/libraryStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { audioEngine } from '@/audio/AudioEngine'
+import { haptic } from '@/hooks/useLongPress'
 import { Scrubber } from './Scrubber'
 import { PlaybackControls } from './PlaybackControls'
 import { VolumeControl } from './VolumeControl'
@@ -43,29 +44,86 @@ export const PersistentPlayer: React.FC = () => {
   const isLiked = useLibraryStore((s) => (track ? s.likedIds.has(track.id) : false))
   const toggleLike = useLibraryStore((s) => s.toggleLike)
   const showLyricsButton = useSettingsStore((s) => s.showLyricsButton)
+  const swipeEnabled = useSettingsStore((s) => s.miniPlayerSwipe)
+  const previousTrack = useQueueStore((s) => s.previousTrack)
+
+  /* Mini player gestures (touch/pen): swipe left → next, right → previous, up → expand */
+  const swipe = useRef<{ x: number; y: number; id: number; active: boolean } | null>(null)
+  const [swipeDx, setSwipeDx] = useState(0)
+  const onSwipeStart = (e: React.PointerEvent<HTMLElement>) => {
+    if (!swipeEnabled || e.pointerType === 'mouse') return
+    swipe.current = { x: e.clientX, y: e.clientY, id: e.pointerId, active: false }
+  }
+  const onSwipeMove = (e: React.PointerEvent<HTMLElement>) => {
+    const st = swipe.current
+    if (!st || st.id !== e.pointerId) return
+    const dx = e.clientX - st.x
+    const dy = e.clientY - st.y
+    if (!st.active && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) st.active = true
+    if (st.active) setSwipeDx(Math.max(-120, Math.min(120, dx)))
+  }
+  const onSwipeEnd = (e: React.PointerEvent<HTMLElement>) => {
+    const st = swipe.current
+    if (!st || st.id !== e.pointerId) return
+    swipe.current = null
+    const dx = e.clientX - st.x
+    const dy = e.clientY - st.y
+    setSwipeDx(0)
+    if (st.active && Math.abs(dx) > 70) {
+      haptic()
+      if (dx < 0) void nextTrack()
+      else void previousTrack()
+    } else if (!st.active && dy < -50 && Math.abs(dy) > Math.abs(dx)) {
+      openFullPlayer()
+    }
+  }
   const lyricsActive = fullPlayerOpen && fullPlayerPane === 'lyrics'
 
   if (!track) {
     return (
-      <div className="h-[var(--webx-player-height)] shrink-0 elev-2 border-t border-outline-variant/40 px-4 md:px-6 flex items-center gap-4 text-on-surface-variant">
-        <div className="size-12 rounded-sm bg-surface-highest flex items-center justify-center"><Music2 className="size-5 opacity-60" /></div>
-        <div className="min-w-0">
-          <p className="type-body-md text-on-surface">Nothing playing</p>
-          <p className="type-body-sm">Pick a track, or press <kbd className="font-mono">Ctrl K</kbd> to search.</p>
+      <div className="hidden md:block relative h-[var(--webx-player-height)] shrink-0 elev-2 bg-surface-container border-t border-outline-variant/40 select-none">
+        <div className="grid h-full grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)] items-center gap-4 px-4 lg:px-6 text-on-surface-variant">
+          {/* Track */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="size-12 rounded-sm bg-surface-highest flex items-center justify-center shrink-0">
+              <Music2 className="size-5 opacity-60" />
+            </div>
+            <div className="min-w-0">
+              <p className="type-body-md text-on-surface">Nothing playing</p>
+              <p className="type-body-sm truncate">Pick a track, or press <kbd className="font-mono">Ctrl K</kbd> to search.</p>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex flex-col items-center justify-center min-w-0 max-w-[520px] w-full mx-auto">
+            <PlaybackControls className="opacity-50 pointer-events-none" />
+          </div>
+
+          {/* Right */}
+          <div className="flex items-center justify-end gap-1 lg:gap-1.5 min-w-0 opacity-40 pointer-events-none">
+            <VolumeControl className="hidden lg:flex" />
+          </div>
         </div>
-        <div className="hidden md:block flex-1" />
-        <PlaybackControls className="hidden md:flex opacity-50" />
-        <div className="hidden md:block w-1/4" />
       </div>
     )
   }
 
   return (
-    <div className="relative h-[var(--webx-player-height)] shrink-0 elev-2 border-t border-outline-variant/40 select-none">
+    <div className="fixed inset-x-0 bottom-[calc(var(--webx-nav-height)+env(safe-area-inset-bottom,0px))] z-40 h-[var(--webx-mini-player-height)] md:relative md:bottom-auto md:z-auto md:h-[var(--webx-player-height)] shrink-0 elev-2 bg-surface-container border-t border-outline-variant/40 select-none">
       {/* ---------- Compact (< md) ---------- */}
-      <div className="md:hidden h-full flex items-center gap-3 px-3">
+      <div className="md:hidden h-full flex items-center gap-3 px-3 relative overflow-hidden" onPointerDown={onSwipeStart} onPointerMove={onSwipeMove} onPointerUp={onSwipeEnd} onPointerCancel={onSwipeEnd}>
         <MiniProgress />
-        <button onClick={() => openFullPlayer()} className="flex items-center gap-3 flex-1 min-w-0 text-left h-full">
+        {/* swipe affordances */}
+        {swipeDx !== 0 && (
+          <div className={cn('absolute inset-y-0 flex items-center px-4 text-primary pointer-events-none transition-opacity', swipeDx < 0 ? 'right-0' : 'left-0')} style={{ opacity: Math.min(1, Math.abs(swipeDx) / 70) }}>
+            {swipeDx < 0 ? <SkipForward className="size-6 fill-current" /> : <SkipBack className="size-6 fill-current" />}
+          </div>
+        )}
+        <button
+          onClick={() => { if (Math.abs(swipeDx) < 8) openFullPlayer() }}
+          className="flex items-center gap-3 flex-1 min-w-0 text-left h-full"
+          style={swipeDx ? { transform: `translateX(${swipeDx * 0.6}px)`, transition: 'none' } : { transition: 'transform 200ms var(--ease-emphasized)' }}
+        >
           <Artwork src={track.cover_url} alt="" className="size-12 rounded-sm shadow-md3-1" />
           <div className="min-w-0">
             <p className="type-body-md font-semibold text-on-surface truncate">{track.title}</p>

@@ -14,12 +14,12 @@ const ITEMS = [
 export const NavigationBar: React.FC = () => {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   return (
-    <nav className="md:hidden shrink-0 elev-2 border-t border-outline-variant/40 flex items-stretch justify-around pb-[env(safe-area-inset-bottom,0px)] z-20" aria-label="Primary">
+    <nav className="md:hidden fixed inset-x-0 bottom-0 z-50 elev-2 bg-surface-container border-t border-outline-variant/40 flex items-stretch justify-around pb-[env(safe-area-inset-bottom,0px)]" aria-label="Primary">
       {ITEMS.map((it) => {
         const active = it.match(pathname)
         const Icon = it.icon
         return (
-          <Link key={it.to} to={it.to} aria-current={active ? 'page' : undefined} className="group flex-1 flex flex-col items-center justify-center gap-1 h-20 pt-3 pb-4 outline-none">
+          <Link key={it.to} to={it.to} aria-current={active ? 'page' : undefined} className="group flex-1 flex flex-col items-center justify-center gap-1 h-16 py-1 outline-none">
             <span className={cn('state-layer flex items-center justify-center w-16 h-8 rounded-full transition-colors duration-200 ease-emphasized', active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant')}>
               <Icon className="size-6" strokeWidth={active ? 2.4 : 1.9} />
             </span>

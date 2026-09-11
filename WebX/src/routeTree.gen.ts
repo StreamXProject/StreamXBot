@@ -28,7 +28,10 @@ import { Route as PlaylistPlaylistIdRouteImport } from './routes/playlist/$playl
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as SettingsAccountRouteImport } from './routes/settings/account'
+import { Route as SettingsAppRouteImport } from './routes/settings/app'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
+import { Route as SettingsEqualizerRouteImport } from './routes/settings/equalizer'
+import { Route as SettingsIntegrationsRouteImport } from './routes/settings/integrations'
 import { Route as SettingsLibraryRouteImport } from './routes/settings/library'
 import { Route as SettingsPlaybackRouteImport } from './routes/settings/playback'
 import { Route as SettingsServerRouteImport } from './routes/settings/server'
@@ -132,9 +135,24 @@ const SettingsAccountRoute = SettingsAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsAppRoute = SettingsAppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsEqualizerRoute = SettingsEqualizerRouteImport.update({
+  id: '/equalizer',
+  path: '/equalizer',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsIntegrationsRoute = SettingsIntegrationsRouteImport.update({
+  id: '/integrations',
+  path: '/integrations',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsLibraryRoute = SettingsLibraryRouteImport.update({
@@ -190,7 +208,10 @@ export interface FileRoutesByFullPath {
   '/playlist/$playlistId': typeof PlaylistPlaylistIdRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/account': typeof SettingsAccountRoute
+  '/settings/app': typeof SettingsAppRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/equalizer': typeof SettingsEqualizerRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/library': typeof SettingsLibraryRoute
   '/settings/playback': typeof SettingsPlaybackRoute
   '/settings/server': typeof SettingsServerRoute
@@ -218,7 +239,10 @@ export interface FileRoutesByTo {
   '/playlist/$playlistId': typeof PlaylistPlaylistIdRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/account': typeof SettingsAccountRoute
+  '/settings/app': typeof SettingsAppRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/equalizer': typeof SettingsEqualizerRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/library': typeof SettingsLibraryRoute
   '/settings/playback': typeof SettingsPlaybackRoute
   '/settings/server': typeof SettingsServerRoute
@@ -248,7 +272,10 @@ export interface FileRoutesById {
   '/playlist/$playlistId': typeof PlaylistPlaylistIdRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/account': typeof SettingsAccountRoute
+  '/settings/app': typeof SettingsAppRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/equalizer': typeof SettingsEqualizerRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/library': typeof SettingsLibraryRoute
   '/settings/playback': typeof SettingsPlaybackRoute
   '/settings/server': typeof SettingsServerRoute
@@ -279,7 +306,10 @@ export interface FileRouteTypes {
     | '/playlist/$playlistId'
     | '/settings/about'
     | '/settings/account'
+    | '/settings/app'
     | '/settings/appearance'
+    | '/settings/equalizer'
+    | '/settings/integrations'
     | '/settings/library'
     | '/settings/playback'
     | '/settings/server'
@@ -307,7 +337,10 @@ export interface FileRouteTypes {
     | '/playlist/$playlistId'
     | '/settings/about'
     | '/settings/account'
+    | '/settings/app'
     | '/settings/appearance'
+    | '/settings/equalizer'
+    | '/settings/integrations'
     | '/settings/library'
     | '/settings/playback'
     | '/settings/server'
@@ -336,7 +369,10 @@ export interface FileRouteTypes {
     | '/playlist/$playlistId'
     | '/settings/about'
     | '/settings/account'
+    | '/settings/app'
     | '/settings/appearance'
+    | '/settings/equalizer'
+    | '/settings/integrations'
     | '/settings/library'
     | '/settings/playback'
     | '/settings/server'
@@ -506,11 +542,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsAccountRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/app': {
+      id: '/settings/app'
+      path: '/app'
+      fullPath: '/settings/app'
+      preLoaderRoute: typeof SettingsAppRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/appearance': {
       id: '/settings/appearance'
       path: '/appearance'
       fullPath: '/settings/appearance'
       preLoaderRoute: typeof SettingsAppearanceRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/equalizer': {
+      id: '/settings/equalizer'
+      path: '/equalizer'
+      fullPath: '/settings/equalizer'
+      preLoaderRoute: typeof SettingsEqualizerRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/integrations': {
+      id: '/settings/integrations'
+      path: '/integrations'
+      fullPath: '/settings/integrations'
+      preLoaderRoute: typeof SettingsIntegrationsRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/library': {
@@ -568,7 +625,10 @@ declare module '@tanstack/react-router' {
 interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
   SettingsAccountRoute: typeof SettingsAccountRoute
+  SettingsAppRoute: typeof SettingsAppRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsEqualizerRoute: typeof SettingsEqualizerRoute
+  SettingsIntegrationsRoute: typeof SettingsIntegrationsRoute
   SettingsLibraryRoute: typeof SettingsLibraryRoute
   SettingsPlaybackRoute: typeof SettingsPlaybackRoute
   SettingsServerRoute: typeof SettingsServerRoute
@@ -579,7 +639,10 @@ interface SettingsRouteChildren {
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
   SettingsAccountRoute: SettingsAccountRoute,
+  SettingsAppRoute: SettingsAppRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsEqualizerRoute: SettingsEqualizerRoute,
+  SettingsIntegrationsRoute: SettingsIntegrationsRoute,
   SettingsLibraryRoute: SettingsLibraryRoute,
   SettingsPlaybackRoute: SettingsPlaybackRoute,
   SettingsServerRoute: SettingsServerRoute,

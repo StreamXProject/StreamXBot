@@ -28,9 +28,15 @@ export const AppShell: React.FC = () => {
   useKeyboardShortcuts()
   useServerStatus()
 
-  // Interface size: CSS zoom on <body> scales the whole UI (incl. portals) without breaking 100% layouts
+  // Interface size: CSS zoom on <body> scales the whole UI on desktop without breaking layouts.
+  // On iOS/iPadOS/WebKit touch devices, CSS zoom breaks position:fixed coordinates, so we skip body zoom there.
   const uiScale = useSettingsStore((s) => s.uiScale)
   useEffect(() => {
+    const isWebKitTouch = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/i.test(navigator.userAgent)))
+    if (isWebKitTouch) {
+      ;(document.body.style as CSSStyleDeclaration & { zoom?: string }).zoom = ''
+      return
+    }
     const z = Math.min(1.3, Math.max(0.8, Number(uiScale) || 1))
     ;(document.body.style as CSSStyleDeclaration & { zoom?: string }).zoom = z === 1 ? '' : String(z)
   }, [uiScale])
@@ -150,7 +156,7 @@ export const AppShell: React.FC = () => {
 
   if (isPublic) {
     return (
-      <div className="fixed inset-0 flex w-full overflow-y-auto bg-surface text-on-surface">
+      <div className="h-full min-h-full w-full flex overflow-y-auto bg-surface text-on-surface pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]">
         <main className="w-full min-h-full flex items-center justify-center p-4">
           <Outlet />
         </main>
@@ -160,7 +166,7 @@ export const AppShell: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-surface text-on-surface overflow-hidden">
+    <div className="fixed inset-0 h-full h-[100dvh] w-full flex flex-col bg-surface text-on-surface overflow-hidden pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]">
       <div
         ref={shellRef}
         className="flex-1 min-h-0 flex flex-col"
@@ -171,7 +177,7 @@ export const AppShell: React.FC = () => {
           <NavigationRail />
           <div className="flex-1 min-w-0 min-h-0 flex flex-col relative">
             <TopAppBar />
-            <main id="app-scroll" ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden relative" style={{ scrollbarGutter: 'stable' }}>
+            <main id="app-scroll" ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden relative pb-[calc(var(--webx-mini-player-height)+var(--webx-nav-height)+env(safe-area-inset-bottom,0px))] md:pb-0" style={{ scrollbarGutter: 'stable' }}>
               <Outlet />
             </main>
           </div>

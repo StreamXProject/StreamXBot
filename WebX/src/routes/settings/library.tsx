@@ -62,7 +62,7 @@ function LibrarySettings() {
         <SettingRow
           icon={<RefreshCw />}
           label="Sync now"
-          description={lib.lastError ? `Last error: ${lib.lastError}` : 'Refresh favourites, playlists and cached pages'}
+          description={lib.lastError ? `Last error: ${lib.lastError}` : 'Favourites, playlists, cached pages'}
           control={<Button variant="tonal" size="sm" loading={syncing} onClick={() => void sync()} disabled={kind === 'none'}>Sync</Button>}
         />
       </SettingsSection>
@@ -79,8 +79,8 @@ function LibrarySettings() {
       </SettingsSection>
 
       <SettingsSection title="Data">
-        <SettingRow icon={<Download />} label="Export library" description="Download favourites, playlists and history as JSON" onClick={exportLibrary} />
-        <SettingRow icon={<Trash2 />} label="Clear local cache" description="Queue, playback position, cached pages and recent searches" onClick={clearCache} />
+        <SettingRow icon={<Download />} label="Export library" description="Favourites, playlists, history · JSON" onClick={exportLibrary} />
+        <SettingRow icon={<Trash2 />} label="Clear local cache" description="Queue, position, cached pages, searches" onClick={clearCache} />
         <SettingRow icon={<RotateCcw />} label="Reset settings" description="Restore all preferences to their defaults" onClick={resetSettings} />
       </SettingsSection>
     </SettingsPage>

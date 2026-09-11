@@ -1,4 +1,6 @@
 import type { Track } from '@/schemas/track'
+import { equalizer } from './Equalizer'
+import { unlockAudioOnce, initAudioUnlock } from './audioUnlock'
 import type { AudioPlaybackState, ProgressState } from './AudioState'
 
 type StateListener = (state: AudioPlaybackState) => void
@@ -93,6 +95,15 @@ export class AudioEngine {
     this.audio.preload = 'auto'
     this.audio.volume = 0.8
     this.setupAudioListeners()
+    if (typeof window !== 'undefined') {
+      equalizer.attach(this.audio)
+      initAudioUnlock()
+    }
+  }
+
+  /** Underlying media element (used by the equalizer / visualisers). */
+  public getMediaElement(): HTMLAudioElement {
+    return this.audio
   }
 
   public static getInstance(): AudioEngine {
@@ -114,6 +125,7 @@ export class AudioEngine {
   private setupAudioListeners(): void {
     const a = this.audio
     a.addEventListener('play', () => {
+      equalizer.resume()
       this.emitState()
       this.startProgressLoop()
       this.setSessionState('playing')
@@ -201,6 +213,10 @@ export class AudioEngine {
     this.emitState()
     this.setupMediaSession(track)
 
+    if (autoPlay) {
+      void unlockAudioOnce()
+    }
+
     const url = this.resolver ? this.resolver.url(track) : track.stream_url || ''
     if (!url) {
       this.isBuffering = false
@@ -218,6 +234,8 @@ export class AudioEngine {
       const currentSrc = this.audio.src || ''
       const targetSrc = typeof window !== 'undefined' && url ? new URL(url, window.location.href).href : url
       if (currentSrc !== targetSrc) {
+        // Note: NEVER set crossOrigin on this.audio — iOS Safari WebKit fails FLAC streaming
+        // over HTTP Range requests with MEDIA_ERR_SRC_NOT_SUPPORTED when crossOrigin is set.
         this.audio.src = url
         try {
           this.audio.currentTime = 0
@@ -245,6 +263,19 @@ export class AudioEngine {
           const e = err as Error
           if (e?.name !== 'AbortError') {
             console.warn('Autoplay failed:', e)
+            if (e?.name === 'NotAllowedError') {
+              const retryPlay = () => {
+                window.removeEventListener('pointerdown', retryPlay, true)
+                window.removeEventListener('click', retryPlay, true)
+                window.removeEventListener('keydown', retryPlay, true)
+                if (seq === this.loadSeq && this.currentTrack?.id === track.id) {
+                  this.audio.play().catch(() => {})
+                }
+              }
+              window.addEventListener('pointerdown', retryPlay, { once: true, capture: true })
+              window.addEventListener('click', retryPlay, { once: true, capture: true })
+              window.addEventListener('keydown', retryPlay, { once: true, capture: true })
+            }
             this.isBuffering = false
             this.emitState()
           }
@@ -255,28 +286,10 @@ export class AudioEngine {
       }
     }
 
-    if (this.resolver?.needsTranscode(track)) {
-      // Transcoded streams must be ready on the server before we request them
-      try {
-        const res = await this.resolver.warm(track.id)
-        if (seq !== this.loadSeq) return
-        if (res.ready) return apply()
-        this.pollTimer = window.setInterval(async () => {
-          if (seq !== this.loadSeq) return this.clearPoll()
-          const again = await this.resolver!.warm(track.id, { force: true })
-          if (again.ready && seq === this.loadSeq) {
-            this.clearPoll()
-            apply()
-          }
-        }, 1500)
-      } catch {
-        return apply()
-      }
-      return
-    }
-
+    // Immediately apply to preserve user gesture context on browser autoplay
     await apply()
-    // Warm in the background so subsequent seeks/replays are instant
+
+    // Warm cache in the background so transcoded tracks or subsequent seeks are cached
     this.resolver?.warm(track.id).catch(() => {})
   }
 
@@ -329,6 +342,8 @@ export class AudioEngine {
   }
 
   public async play(): Promise<void> {
+    void unlockAudioOnce()
+    equalizer.resume()
     if (!this.audio.src && this.currentTrack) return this.loadTrack(this.currentTrack, true)
     try {
       await this.audio.play()
@@ -342,6 +357,8 @@ export class AudioEngine {
   }
 
   public togglePlay(): void {
+    void unlockAudioOnce()
+    equalizer.resume()
     if (this.audio.paused) void this.play()
     else this.pause()
   }

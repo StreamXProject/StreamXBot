@@ -1,6 +1,6 @@
 import React from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Waves, Zap, RotateCcw, Gauge, Mic2, ShieldAlert } from 'lucide-react'
+import { Waves, Zap, RotateCcw, Gauge, Mic2, ShieldAlert, Vibrate, Hand } from 'lucide-react'
 import { SettingsPage, SettingsSection, SettingRow } from '@/components/settings/SettingsPrimitives'
 import { SegmentedButton, Switch, Slider } from '@/components/md3'
 import { useSettingsStore, type StreamFormat } from '@/stores/settingsStore'
@@ -19,17 +19,17 @@ function PlaybackSettings() {
   const flac = canBrowserPlayFlac()
 
   return (
-    <SettingsPage title="Playback" description="The server streams the original file. These options control how WebX asks for it and what it does around the edges.">
+    <SettingsPage title="Playback" description="Streaming and playback behaviour">
       <SettingsSection title="Streaming">
         <SettingRow
           icon={<Waves />}
           label="Stream format"
           description={
             s.streamFormat === 'auto'
-              ? `Original file, transcoded to FLAC only when the browser can't decode it (ALAC ${alac ? 'supported' : 'not supported'} here).`
+              ? `Original · FLAC only when needed (ALAC ${alac ? 'supported' : 'unsupported'} here)`
               : s.streamFormat === 'flac'
-                ? 'Always ask the server for FLAC. Lossless, but the server does extra work.'
-                : 'Always the original file. Some ALAC tracks may not play in this browser.'
+                ? 'Always FLAC · more server work'
+                : 'Original only · ALAC may not play here'
           }
           stacked
           control={
@@ -45,7 +45,7 @@ function PlaybackSettings() {
         <SettingRow
           icon={<Zap />}
           label="Prefetch next track"
-          description="Warm the server cache and pre-buffer the upcoming track for near-gapless transitions"
+          description="Pre-buffer the next track"
           control={<Switch checked={s.prefetchNext} onChange={(v) => s.set('prefetchNext', v)} label="Prefetch next track" />}
         />
         <SettingRow
@@ -64,13 +64,13 @@ function PlaybackSettings() {
         <SettingRow
           icon={<RotateCcw />}
           label="Resume where you left off"
-          description="Restore the queue and position when the app opens (paused)"
+          description="Restore queue and position on launch"
           control={<Switch checked={s.resumeOnLaunch} onChange={(v) => s.set('resumeOnLaunch', v)} label="Resume on launch" />}
         />
         <SettingRow
           icon={<Gauge />}
           label="Playback speed"
-          description={`${playbackRate.toFixed(2).replace(/\.?0+$/, '')}× — applies to the current session`}
+          description={`${playbackRate.toFixed(2).replace(/\.?0+$/, '')}× · this session`}
           stacked
           control={
             <div className="flex items-center gap-3 w-full">
@@ -83,9 +83,14 @@ function PlaybackSettings() {
         <SettingRow
           icon={<ShieldAlert />}
           label="Confirm destructive actions"
-          description="Ask before clearing a long queue or deleting playlists"
+          description="Confirm queue clears and playlist deletes"
           control={<Switch checked={s.confirmDestructive} onChange={(v) => s.set('confirmDestructive', v)} label="Confirm destructive actions" />}
         />
+      </SettingsSection>
+      <SettingsSection title="Touch">
+        <SettingRow icon={<Hand />} label="Mini player gestures" description="Swipe to skip · swipe up to expand" control={<Switch checked={s.miniPlayerSwipe} onChange={(v) => s.set('miniPlayerSwipe', v)} label="Mini player gestures" />} />
+        <SettingRow icon={<Vibrate />} label="Haptic feedback" description="On long-press, drag and swipe" control={<Switch checked={s.haptics} onChange={(v) => s.set('haptics', v)} label="Haptic feedback" />} />
+        <SettingRow label="Long-press" description="Hold a track for its menu · hold ≡ in the queue to reorder" />
       </SettingsSection>
     </SettingsPage>
   )

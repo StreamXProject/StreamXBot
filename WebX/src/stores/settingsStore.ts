@@ -5,6 +5,7 @@ import type { AudioQualityLevel } from '@/audio/AudioQuality'
 export type StreamFormat = 'auto' | 'original' | 'flac'
 export type LibraryTab = 'liked' | 'playlists' | 'history' | 'albums' | 'artists'
 export type StartPage = '/' | '/search' | '/library'
+export type DiscordMode = 'gateway' | 'daemon'
 
 export interface SettingsState {
   // Server / endpoints
@@ -37,6 +38,39 @@ export interface SettingsState {
   showQualityBadges: boolean
   /** Interface scale (CSS zoom on <body>), 0.8 – 1.3 */
   uiScale: number
+
+  // Equalizer
+  eqEnabled: boolean
+  eqPreset: string
+  eqGains: number[]
+  eqPreamp: number
+
+  // Integrations — Last.fm
+  lastfmEnabled: boolean
+  lastfmApiKey: string
+  lastfmApiSecret: string
+  lastfmSessionKey: string
+  lastfmUsername: string
+  /** Scrobble once playback passes this fraction of the track (0.5 = 50%) */
+  lastfmScrobbleAt: number
+  lastfmNowPlaying: boolean
+
+  // Integrations — Discord Rich Presence
+  discordEnabled: boolean
+  discordMode: DiscordMode
+  discordUserToken: string
+  discordClientId: string
+  discordDaemonUrl: string
+  discordShowArtwork: boolean
+
+  // App / PWA
+  pwaAutoUpdate: boolean
+
+  // Touch
+  /** Vibrate on long-press, drag and gestures (where supported) */
+  haptics: boolean
+  /** Swipe the mini player left/right to skip, up to expand */
+  miniPlayerSwipe: boolean
 
   // Onboarding
   hasSeenWelcome: boolean
@@ -83,6 +117,26 @@ const DEFAULTS = {
   confirmDestructive: true,
   showQualityBadges: true,
   uiScale: 1,
+  eqEnabled: false,
+  eqPreset: 'flat',
+  eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] as number[],
+  eqPreamp: 0,
+  lastfmEnabled: false,
+  lastfmApiKey: '',
+  lastfmApiSecret: '',
+  lastfmSessionKey: '',
+  lastfmUsername: '',
+  lastfmScrobbleAt: 0.5,
+  lastfmNowPlaying: true,
+  discordEnabled: false,
+  discordMode: 'gateway' as DiscordMode,
+  discordUserToken: '',
+  discordClientId: '1547543416143876167',
+  discordDaemonUrl: 'ws://127.0.0.1:6472',
+  discordShowArtwork: true,
+  pwaAutoUpdate: true,
+  haptics: true,
+  miniPlayerSwipe: true,
   hasSeenWelcome: false,
 }
 

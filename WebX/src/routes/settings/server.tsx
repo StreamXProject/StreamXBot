@@ -70,7 +70,7 @@ function ServerSettings() {
   const dirty = normalizeBaseUrl(draft) !== normalizeBaseUrl(apiBaseUrl)
 
   return (
-    <SettingsPage title="Server & endpoints" description="WebX talks to a StreamX API server. Point it at your deployment — a local daemon, a LAN box, or a public host.">
+    <SettingsPage title="Server & endpoints" description="StreamX API address">
       <SettingsSection title="Connection">
         <div className="p-4 space-y-3">
           <TextField
@@ -105,7 +105,7 @@ function ServerSettings() {
         </div>
         <SettingRow
           label="Current status"
-          description={serverStatus === 'online' ? 'Reachable' : serverStatus === 'offline' ? 'Unreachable — pages will show an error state' : 'Checking…'}
+          description={serverStatus === 'online' ? 'Reachable' : serverStatus === 'offline' ? 'Unreachable' : 'Checking…'}
           control={<span className={cn('size-3 rounded-full', serverStatus === 'online' ? 'bg-tertiary' : serverStatus === 'offline' ? 'bg-error' : 'bg-outline')} />}
         />
       </SettingsSection>
@@ -130,7 +130,7 @@ function ServerSettings() {
         <SettingRow
           icon={<FlaskConical />}
           label="Demo mode"
-          description="Use a bundled sample catalog instead of the server. Handy for trying themes when you're offline."
+          description="Sample catalog, no server"
           control={<Switch checked={demoMode} onChange={(v) => { setSetting('demoMode', v); qc.clear() }} label="Demo mode" />}
         />
       </SettingsSection>

@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react'
+import { useLongPress } from '@/hooks/useLongPress'
 import { Play, Heart, MoreHorizontal } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import type { Track } from '@/schemas/track'
@@ -51,14 +52,20 @@ export const TrackRow: React.FC<TrackRowProps> = React.memo(
       e.stopPropagation()
       openContextMenu({ track, tracks, index, anchor: e.currentTarget instanceof HTMLButtonElement ? e.currentTarget : { x: e.clientX, y: e.clientY } })
     }
+    const longPress = useLongPress(
+      useCallback((pt) => openContextMenu({ track, tracks, index, anchor: { x: pt.x, y: pt.y } }), [openContextMenu, track, tracks, index])
+    )
 
     return (
       <div
         role="button"
         tabIndex={0}
-        onClick={play}
+        onClick={(e) => {
+          if (!longPress.swallowClick(e)) play(e)
+        }}
         onDoubleClick={play}
         onContextMenu={openMenu}
+        {...longPress.handlers}
         onKeyDown={(e) => {
           if (e.key === 'Enter') play(e)
         }}

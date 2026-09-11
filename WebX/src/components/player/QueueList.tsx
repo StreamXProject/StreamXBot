@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react'
+import { haptic } from '@/hooks/useLongPress'
 import { X, GripVertical, Shuffle, Trash2, ListMusic } from 'lucide-react'
 import { useQueueStore } from '@/stores/queueStore'
 import { usePlayerStore } from '@/stores/playerStore'
@@ -24,8 +25,63 @@ export const QueueList: React.FC<{ className?: string; showHeader?: boolean }> =
   const reorderQueue = useQueueStore((s) => s.reorderQueue)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
   const confirmDestructive = useSettingsStore((s) => s.confirmDestructive)
-  const dragFrom = useRef<number | null>(null)
+  const listRef = useRef<HTMLUListElement>(null)
   const [over, setOver] = useState<number | null>(null)
+  const [drag, setDrag] = useState<{ from: number; dy: number } | null>(null)
+  const dragState = useRef<{ from: number; startY: number; pointerId: number } | null>(null)
+
+  /* Pointer-based reorder: works for touch, pen and mouse (HTML5 drag & drop has no touch support). */
+  const beginDrag = (e: React.PointerEvent<HTMLElement>, idx: number) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    dragState.current = { from: idx, startY: e.clientY, pointerId: e.pointerId }
+    setDrag({ from: idx, dy: 0 })
+    setOver(idx)
+    haptic()
+  }
+  const moveDrag = (e: React.PointerEvent<HTMLElement>) => {
+    const st = dragState.current
+    if (!st || e.pointerId !== st.pointerId) return
+    const dy = e.clientY - st.startY
+    setDrag({ from: st.from, dy })
+    const list = listRef.current
+    if (!list) return
+    // find the row whose vertical middle is closest to the pointer
+    let best: number | null = null
+    let bestDist = Infinity
+    Array.from(list.children).forEach((child) => {
+      const el = child as HTMLElement
+      const i = Number(el.dataset.queueIndex)
+      if (!Number.isFinite(i)) return
+      const r = el.getBoundingClientRect()
+      const d = Math.abs(e.clientY - (r.top + r.height / 2))
+      if (d < bestDist) {
+        bestDist = d
+        best = i
+      }
+    })
+    if (best !== null && best !== over) setOver(best)
+    // auto-scroll the list container near its edges
+    const scroller = list.parentElement
+    if (scroller) {
+      const r = scroller.getBoundingClientRect()
+      if (e.clientY < r.top + 40) scroller.scrollTop -= 8
+      else if (e.clientY > r.bottom - 40) scroller.scrollTop += 8
+    }
+  }
+  const endDrag = (e: React.PointerEvent<HTMLElement>) => {
+    const st = dragState.current
+    if (!st || e.pointerId !== st.pointerId) return
+    dragState.current = null
+    if (over !== null && over !== st.from) {
+      reorderQueue(st.from, over)
+      haptic(8)
+    }
+    setDrag(null)
+    setOver(null)
+  }
 
   const current = currentIndex >= 0 ? queue[currentIndex] : null
   const upcoming = queue.slice(currentIndex + 1)
@@ -73,39 +129,45 @@ export const QueueList: React.FC<{ className?: string; showHeader?: boolean }> =
         {upcoming.length === 0 ? (
           <p className="px-3 py-6 text-center type-body-sm text-on-surface-variant">Nothing queued after this track.</p>
         ) : (
-          <ul className="space-y-0.5">
+          <ul ref={listRef} className="space-y-0.5">
             {upcoming.map((t, i) => {
               const idx = currentIndex + 1 + i
               return (
                 <li
                   key={`${t.id}-${idx}`}
-                  draggable
-                  onDragStart={() => (dragFrom.current = idx)}
-                  onDragOver={(e) => {
-                    e.preventDefault()
-                    setOver(idx)
+                  data-queue-index={idx}
+                  className={cn(
+                    'group flex items-center gap-2 h-14 pl-1 pr-1 rounded-md state-layer cursor-pointer',
+                    over === idx && drag && drag.from !== idx && (drag.from < idx ? 'shadow-[inset_0_-2px_0_var(--md-sys-color-primary)]' : 'shadow-[inset_0_2px_0_var(--md-sys-color-primary)]'),
+                    drag?.from === idx && 'relative z-10 bg-surface-high shadow-md3-2 scale-[1.02]'
+                  )}
+                  style={drag?.from === idx ? { transform: `translateY(${drag.dy}px) scale(1.02)`, transition: 'none' } : undefined}
+                  onClick={() => {
+                    if (!drag) void jumpTo(idx)
                   }}
-                  onDragLeave={() => setOver(null)}
-                  onDrop={() => {
-                    if (dragFrom.current !== null && dragFrom.current !== idx) reorderQueue(dragFrom.current, idx)
-                    dragFrom.current = null
-                    setOver(null)
-                  }}
-                  onDragEnd={() => setOver(null)}
-                  className={cn('group flex items-center gap-2 h-14 pl-1 pr-1 rounded-md state-layer cursor-pointer', over === idx && 'ring-2 ring-primary/60')}
-                  onClick={() => void jumpTo(idx)}
                 >
-                  <span className="cursor-grab text-on-surface-variant/60 opacity-0 group-hover:opacity-100 touch-none"><GripVertical className="size-4" /></span>
+                  <span
+                    role="button"
+                    aria-label="Drag to reorder"
+                    className="drag-handle flex items-center justify-center size-8 -ml-1 rounded-full cursor-grab active:cursor-grabbing text-on-surface-variant/70 opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100 touch-none select-none"
+                    onPointerDown={(e) => beginDrag(e, idx)}
+                    onPointerMove={moveDrag}
+                    onPointerUp={endDrag}
+                    onPointerCancel={endDrag}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <GripVertical className="size-4" />
+                  </span>
                   <Artwork src={t.cover_url} alt="" className="size-10 rounded-sm" />
                   <div className="min-w-0 flex-1">
                     <p className="type-body-md text-on-surface truncate">{t.title}</p>
                     <p className="type-body-sm text-on-surface-variant truncate">{t.artist}</p>
                   </div>
-                  <span className="tabular type-body-sm text-on-surface-variant group-hover:hidden">{formatDuration(t.duration_sec)}</span>
+                  <span className="tabular type-body-sm text-on-surface-variant group-hover:hidden [@media(pointer:coarse)]:hidden">{formatDuration(t.duration_sec)}</span>
                   <IconButton
                     label="Remove from queue"
                     size="sm"
-                    className="hidden group-hover:inline-flex"
+                    className="hidden group-hover:inline-flex [@media(pointer:coarse)]:inline-flex"
                     onClick={(e) => {
                       e.stopPropagation()
                       removeFromQueue(idx)

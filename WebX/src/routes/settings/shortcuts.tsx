@@ -15,7 +15,7 @@ function ShortcutsSettings() {
   const set = useSettingsStore((s) => s.set)
   const groups = ['Playback', 'View', 'Navigation'] as const
   return (
-    <SettingsPage title="Keyboard shortcuts" description="Shortcuts are ignored while typing in a text field. Press ? anywhere to see this list.">
+    <SettingsPage title="Keyboard shortcuts" description="Ignored while typing · press ? to view">
       <SettingsSection>
         <SettingRow label="Enable shortcuts" control={<Switch checked={enabled} onChange={(v) => set('keyboardShortcuts', v)} label="Enable shortcuts" />} />
       </SettingsSection>

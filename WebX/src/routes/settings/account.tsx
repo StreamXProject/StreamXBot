@@ -88,7 +88,7 @@ function AccountSettings() {
           <SettingRow
             icon={<LogIn />}
             label="Sign in to an account"
-            description="Guest sessions can play everything but favourites and playlists stay on this device only."
+            description="Guest: favourites and playlists stay local"
             onClick={() => navigate({ to: '/login', search: { mode: 'account' } })}
             control={<Button variant="tonal" size="sm">Sign in</Button>}
           />
@@ -110,7 +110,7 @@ function AccountSettings() {
       </SettingsSection>
 
       {kind !== 'none' && (
-        <SettingsSection title="Security" description="Both actions require the current session to be valid on the server.">
+        <SettingsSection title="Security" description="Requires a valid session">
           <SettingRow icon={<KeyRound />} label="Change server password" description="The shared password used for guest access" onClick={() => { setErr(null); setPwOpen(true) }} />
           <SettingRow icon={<UserPlus />} label={user?.username ? 'Update username & password' : 'Set username & password'} description="Sign in with credentials instead of Telegram" onClick={() => { setErr(null); setCredOpen(true) }} />
         </SettingsSection>

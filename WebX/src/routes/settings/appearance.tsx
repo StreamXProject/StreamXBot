@@ -104,7 +104,7 @@ function AppearanceSettings() {
         <SettingRow
           icon={<Sparkles />}
           label="Color from artwork"
-          description="Derive the palette from the playing track's cover — like Material You wallpaper color."
+          description="Palette from the playing cover"
           control={<Switch checked={dynamicColor} onChange={toggleDynamic} label="Color from artwork" />}
         />
       </SettingsSection>
@@ -113,7 +113,7 @@ function AppearanceSettings() {
         <div className="mb-3 px-1 flex items-end justify-between">
           <div>
             <h2 className="type-title-sm text-primary">Themes</h2>
-            <p className="type-body-sm text-on-surface-variant">Previews show the {resolvedMode} scheme. Scroll sideways to browse. Right-click or use ⋮ for options.</p>
+            <p className="type-body-sm text-on-surface-variant">{resolvedMode} previews · scroll sideways · ⋮ for options</p>
           </div>
         </div>
         <div role="radiogroup" className="theme-rail flex gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none -mx-1 px-1 pb-2">
@@ -143,7 +143,7 @@ function AppearanceSettings() {
         <SettingRow
           icon={<ZoomIn />}
           label="Interface size"
-          description={`${Math.round(uiScale * 100)}% — scales text, controls and spacing across the app`}
+          description={`${Math.round(uiScale * 100)}%`}
           stacked
           control={
             <div className="flex items-center gap-3 w-full">
@@ -156,7 +156,7 @@ function AppearanceSettings() {
         />
         <SettingRow
           label="Motion"
-          description="Reduced motion removes transitions and marquee text"
+          description="Reduced: no transitions or marquee"
           control={
             <SegmentedButton<MotionPref>
               size="sm"
@@ -167,8 +167,8 @@ function AppearanceSettings() {
             />
           }
         />
-        <SettingRow label="Compact track rows" description="Fit more tracks on screen" control={<Switch checked={compactRows} onChange={(v) => setSetting('compactRows', v)} label="Compact rows" />} />
-        <SettingRow label="Quality badges" description="Show FLAC / ALAC / MP3 tags next to tracks" control={<Switch checked={showQualityBadges} onChange={(v) => setSetting('showQualityBadges', v)} label="Quality badges" />} />
+        <SettingRow label="Compact track rows" description="Denser lists" control={<Switch checked={compactRows} onChange={(v) => setSetting('compactRows', v)} label="Compact rows" />} />
+        <SettingRow label="Quality badges" description="FLAC / ALAC / MP3 tags" control={<Switch checked={showQualityBadges} onChange={(v) => setSetting('showQualityBadges', v)} label="Quality badges" />} />
       </SettingsSection>
 
       {/* Theme card menu */}
