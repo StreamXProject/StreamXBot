@@ -82,6 +82,10 @@ export interface SettingsState {
   // App / PWA
   pwaAutoUpdate: boolean
 
+  // Recaps
+  /** Record listening events for recaps */
+  recapsEnabled: boolean
+
   // Touch
   /** Vibrate on long-press, drag and gestures (where supported) */
   haptics: boolean
@@ -162,6 +166,7 @@ const DEFAULTS = {
   discordShowArtwork: true,
   pwaAutoUpdate: true,
   haptics: true,
+  recapsEnabled: true,
   miniPlayerSwipe: true,
   hasSeenWelcome: false,
 }

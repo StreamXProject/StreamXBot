@@ -24,7 +24,9 @@ import { useQueueStore } from '@/stores/queueStore'
 import { audioEngine } from '@/audio/AudioEngine'
 import '@/theme/themeStore'
 
-const PUBLIC_ROUTES = ['/login', '/signup', '/setup']
+const PUBLIC_ROUTES = ['/login', '/signup', '/setup', '/recap/share']
+/** Routes that own the whole viewport (no rail / top bar / player) */
+const IMMERSIVE_ROUTES = ['/recap/']
 
 export const AppShell: React.FC = () => {
   useKeyboardShortcuts()
@@ -72,6 +74,7 @@ export const AppShell: React.FC = () => {
   const booted = useRef(false)
 
   const isPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r)) || pathname.startsWith('/share')
+  const isImmersive = !isPublic && IMMERSIVE_ROUTES.some((r) => pathname.startsWith(r))
 
   // Auth gate
   useEffect(() => {
@@ -162,6 +165,16 @@ export const AppShell: React.FC = () => {
     }
     el.style.visibility = ''
   }, [fullPlayerOpen])
+
+  if (isImmersive) {
+    return (
+      <div className="fixed inset-0 w-full bg-surface text-on-surface overflow-hidden">
+        <Outlet />
+        <AddToPlaylistDialog />
+        <ToastHost />
+      </div>
+    )
+  }
 
   if (isPublic) {
     return (

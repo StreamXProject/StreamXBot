@@ -10,6 +10,7 @@ import { ApiError } from './api/client'
 import { registerServiceWorker } from './hooks/usePwa'
 import { startScrobbler } from './services/lastfm'
 import { startDiscordPresence } from './services/discordPresence'
+import { startListeningRecorder } from './services/listening'
 import { equalizer } from './audio/Equalizer'
 import { initAudioUnlock } from './audio/audioUnlock'
 import { useSettingsStore } from './stores/settingsStore'
@@ -20,6 +21,7 @@ initAudioUnlock()
 // Background services (all idempotent, all opt-in via settings)
 startScrobbler()
 startDiscordPresence()
+startListeningRecorder()
 {
   const s = useSettingsStore.getState()
   equalizer.setGains(s.eqGains)

@@ -59,6 +59,16 @@ export const API_ENDPOINTS = {
   ME_FAVOURITE_IDS: '/me/favourites/ids',
   ME_TOP_PLAYED: '/me/top-played',
   ME_HISTORY: '/me/history',
+
+  // Recaps
+  ME_LISTENING_EVENTS: '/me/listening-events',
+  ME_RECAPS: '/me/recaps',
+  ME_RECAP: (type: string, period: string) => `/me/recaps/${enc(type)}/${enc(period)}`,
+  ME_RECAP_SHARE: (type: string, period: string) => `/me/recaps/${enc(type)}/${enc(period)}/share`,
+  ME_RECAP_SHARES: '/me/recaps/shares',
+  ME_RECAP_SHARE_REVOKE: (token: string) => `/me/recaps/shares/${enc(token)}`,
+  ME_RECAP_DATA: '/me/recaps/data',
+  RECAP_PUBLIC_SHARE: (token: string) => `/recaps/share/${enc(token)}`,
   ME_PLAYLISTS: '/me/playlists',
   ME_PLAYLIST: (id: string) => `/me/playlists/${enc(id)}`,
   ME_PLAYLIST_TRACKS: (id: string) => `/me/playlists/${enc(id)}/tracks`,

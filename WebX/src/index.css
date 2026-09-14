@@ -407,6 +407,18 @@
       opacity var(--md-sys-motion-duration-short4) linear,
       visibility 0s;
   }
+  /* Recap scene animations — transform/opacity only */
+  .recap-enter-fade { animation: recap-fade var(--md-sys-motion-duration-long2, 500ms) var(--md-sys-motion-easing-emphasized-decelerate) both; }
+  .recap-enter-scale { animation: recap-scale 600ms var(--md-sys-motion-easing-emphasized-decelerate) both; }
+  .recap-enter-slideUp { animation: recap-slide-up 550ms var(--md-sys-motion-easing-emphasized-decelerate) both; }
+  .recap-enter-zoom { animation: recap-zoom 700ms var(--md-sys-motion-easing-emphasized-decelerate) both; }
+  @keyframes recap-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes recap-scale { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+  @keyframes recap-slide-up { from { opacity: 0; transform: translate3d(0, 24px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+  @keyframes recap-zoom { from { opacity: 0; transform: scale(1.12); } to { opacity: 1; transform: scale(1); } }
+  :root[data-reduced-motion="true"] .recap-enter-fade, :root[data-reduced-motion="true"] .recap-enter-scale, :root[data-reduced-motion="true"] .recap-enter-slideUp, :root[data-reduced-motion="true"] .recap-enter-zoom { animation-duration: 1ms; }
+  .recap-canvas { touch-action: none; }
+
   /* Queue drag handle: always visible on touch devices */
   @media (pointer: coarse) {
     .drag-handle { opacity: 1 !important; }

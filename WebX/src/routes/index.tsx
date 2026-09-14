@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Play, Shuffle, Clock, Flame } from 'lucide-react'
+import { Play, Shuffle, Clock, Flame, Sparkles, ChevronRight } from 'lucide-react'
 import { useBrowseTracks, useFeaturedMixes, useAlbums, useArtists, useHistory } from '@/hooks/useQueries'
 import { useQueueStore } from '@/stores/queueStore'
 import { useAuthStore, sessionKind } from '@/stores/authStore'
@@ -18,6 +18,8 @@ import { Button } from '@/components/md3'
 import { toast } from '@/stores/uiStore'
 import { cn } from '@/lib/cn'
 import { seedFromImage } from '@/theme'
+import { useQuery } from '@tanstack/react-query'
+import { fetchAvailableRecaps } from '@/features/recap/api'
 
 export const Route = createFileRoute('/')({
   component: HomePage,
@@ -69,6 +71,8 @@ function HomePage() {
   const playTrackWithQueue = useQueueStore((s) => s.playTrackWithQueue)
   const [shuffling, setShuffling] = useState(false)
 
+  const recaps = useQuery({ queryKey: ['recaps', 'available'], queryFn: ({ signal }) => fetchAvailableRecaps(signal), enabled: kind === 'user', staleTime: 5 * 60_000 })
+  const featuredRecap = recaps.data?.find((r) => r.type === 'monthly' && !r.ongoing) ?? recaps.data?.find((r) => r.type === 'weekly' && !r.ongoing) ?? recaps.data?.[0]
   const tracks = browse.data?.items ?? []
   const heroCover = tracks[0]?.cover_url ?? null
   const [heroColor, setHeroColor] = useState<string | null>(null)
@@ -130,6 +134,24 @@ function HomePage() {
           )}
         </div>
       </section>
+
+      {/* Recap teaser */}
+      {featuredRecap && (
+        <section>
+          <button
+            onClick={() => navigate({ to: '/recap/$type/$period', params: { type: featuredRecap.type, period: featuredRecap.period } })}
+            className="state-layer group w-full text-left rounded-2xl bg-primary-container text-on-primary-container p-5 flex items-center gap-4"
+          >
+            <span className="size-12 rounded-xl bg-on-primary-container/15 flex items-center justify-center shrink-0"><Sparkles className="size-6" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block type-label-lg opacity-80">Your {featuredRecap.type} recap{featuredRecap.ongoing ? ' so far' : ' is ready'}</span>
+              <span className="block type-headline-sm truncate">{featuredRecap.label}</span>
+            </span>
+            <span className="hidden sm:inline type-label-lg opacity-80 group-hover:underline" onClick={(e) => { e.stopPropagation(); navigate({ to: '/recaps' }) }}>All recaps</span>
+            <ChevronRight className="size-6 shrink-0 opacity-80 transition-transform group-hover:translate-x-0.5" />
+          </button>
+        </section>
+      )}
 
       {/* Recently played (compact chips grid) */}
       {recent.length > 0 && (

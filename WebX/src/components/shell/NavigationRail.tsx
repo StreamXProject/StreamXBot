@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Home, Search, Library, Disc3, Users, Settings, Plus, PanelLeftClose, PanelLeftOpen, ListMusic, Heart, Music2 } from 'lucide-react'
+import { Home, Search, Library, Disc3, Users, Settings, Plus, PanelLeftClose, PanelLeftOpen, ListMusic, Heart, Music2, Sparkles } from 'lucide-react'
 import { useUiStore } from '@/stores/uiStore'
 import { useLibraryStore } from '@/stores/libraryStore'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -20,6 +20,7 @@ const PRIMARY: NavItem[] = [
   { label: 'Home', to: '/', icon: Home, match: (p) => p === '/' || p.startsWith('/mix') },
   { label: 'Search', to: '/search', icon: Search },
   { label: 'Library', to: '/library', icon: Library, match: (p) => p.startsWith('/library') || p.startsWith('/playlist') },
+  { label: 'Recaps', to: '/recaps', icon: Sparkles, match: (p) => p.startsWith('/recap') },
 ]
 const SECONDARY: NavItem[] = [
   { label: 'Albums', to: '/explore/albums', icon: Disc3, match: (p) => p.startsWith('/explore/albums') || p.startsWith('/album') },

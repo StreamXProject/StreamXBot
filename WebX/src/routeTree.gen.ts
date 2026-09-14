@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as RecapsRouteImport } from './routes/recaps'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignupRouteImport } from './routes/signup'
@@ -39,6 +40,8 @@ import { Route as SettingsServerRouteImport } from './routes/settings/server'
 import { Route as SettingsShortcutsRouteImport } from './routes/settings/shortcuts'
 import { Route as TopicNameRouteImport } from './routes/topic/$name'
 import { Route as TrackTrackIdRouteImport } from './routes/track/$trackId'
+import { Route as RecapTypePeriodRouteImport } from './routes/recap/$type/$period'
+import { Route as RecapShareTokenRouteImport } from './routes/recap/share/$token'
 import { Route as SharePlaylistPlaylistIdRouteImport } from './routes/share/playlist/$playlistId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -54,6 +57,11 @@ const LibraryRoute = LibraryRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecapsRoute = RecapsRouteImport.update({
+  id: '/recaps',
+  path: '/recaps',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchRoute = SearchRouteImport.update({
@@ -191,6 +199,16 @@ const TrackTrackIdRoute = TrackTrackIdRouteImport.update({
   path: '/track/$trackId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RecapTypePeriodRoute = RecapTypePeriodRouteImport.update({
+  id: '/recap/$type/$period',
+  path: '/recap/$type/$period',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecapShareTokenRoute = RecapShareTokenRouteImport.update({
+  id: '/recap/share/$token',
+  path: '/recap/share/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SharePlaylistPlaylistIdRoute = SharePlaylistPlaylistIdRouteImport.update({
   id: '/share/playlist/$playlistId',
   path: '/share/playlist/$playlistId',
@@ -201,6 +219,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
+  '/recaps': typeof RecapsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
@@ -228,12 +247,15 @@ export interface FileRoutesByFullPath {
   '/albums/': typeof AlbumsIndexRoute
   '/artists/': typeof ArtistsIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/recap/$type/$period': typeof RecapTypePeriodRoute
+  '/recap/share/$token': typeof RecapShareTokenRoute
   '/share/playlist/$playlistId': typeof SharePlaylistPlaylistIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
+  '/recaps': typeof RecapsRoute
   '/search': typeof SearchRoute
   '/signup': typeof SignupRoute
   '/album/$albumId': typeof AlbumAlbumIdRoute
@@ -260,6 +282,8 @@ export interface FileRoutesByTo {
   '/albums': typeof AlbumsIndexRoute
   '/artists': typeof ArtistsIndexRoute
   '/settings': typeof SettingsIndexRoute
+  '/recap/$type/$period': typeof RecapTypePeriodRoute
+  '/recap/share/$token': typeof RecapShareTokenRoute
   '/share/playlist/$playlistId': typeof SharePlaylistPlaylistIdRoute
 }
 export interface FileRoutesById {
@@ -267,6 +291,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
+  '/recaps': typeof RecapsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRouteWithChildren
   '/signup': typeof SignupRoute
@@ -294,6 +319,8 @@ export interface FileRoutesById {
   '/albums/': typeof AlbumsIndexRoute
   '/artists/': typeof ArtistsIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/recap/$type/$period': typeof RecapTypePeriodRoute
+  '/recap/share/$token': typeof RecapShareTokenRoute
   '/share/playlist/$playlistId': typeof SharePlaylistPlaylistIdRoute
 }
 export interface FileRouteTypes {
@@ -302,6 +329,7 @@ export interface FileRouteTypes {
     | '/'
     | '/library'
     | '/login'
+    | '/recaps'
     | '/search'
     | '/settings'
     | '/signup'
@@ -329,12 +357,15 @@ export interface FileRouteTypes {
     | '/albums/'
     | '/artists/'
     | '/settings/'
+    | '/recap/$type/$period'
+    | '/recap/share/$token'
     | '/share/playlist/$playlistId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/library'
     | '/login'
+    | '/recaps'
     | '/search'
     | '/signup'
     | '/album/$albumId'
@@ -361,12 +392,15 @@ export interface FileRouteTypes {
     | '/albums'
     | '/artists'
     | '/settings'
+    | '/recap/$type/$period'
+    | '/recap/share/$token'
     | '/share/playlist/$playlistId'
   id:
     | '__root__'
     | '/'
     | '/library'
     | '/login'
+    | '/recaps'
     | '/search'
     | '/settings'
     | '/signup'
@@ -394,6 +428,8 @@ export interface FileRouteTypes {
     | '/albums/'
     | '/artists/'
     | '/settings/'
+    | '/recap/$type/$period'
+    | '/recap/share/$token'
     | '/share/playlist/$playlistId'
   fileRoutesById: FileRoutesById
 }
@@ -401,6 +437,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LibraryRoute: typeof LibraryRoute
   LoginRoute: typeof LoginRoute
+  RecapsRoute: typeof RecapsRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   SignupRoute: typeof SignupRoute
@@ -416,6 +453,8 @@ export interface RootRouteChildren {
   TrackTrackIdRoute: typeof TrackTrackIdRoute
   AlbumsIndexRoute: typeof AlbumsIndexRoute
   ArtistsIndexRoute: typeof ArtistsIndexRoute
+  RecapTypePeriodRoute: typeof RecapTypePeriodRoute
+  RecapShareTokenRoute: typeof RecapShareTokenRoute
   SharePlaylistPlaylistIdRoute: typeof SharePlaylistPlaylistIdRoute
 }
 
@@ -440,6 +479,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recaps': {
+      id: '/recaps'
+      path: '/recaps'
+      fullPath: '/recaps'
+      preLoaderRoute: typeof RecapsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/search': {
@@ -631,6 +677,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TrackTrackIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/recap/$type/$period': {
+      id: '/recap/$type/$period'
+      path: '/recap/$type/$period'
+      fullPath: '/recap/$type/$period'
+      preLoaderRoute: typeof RecapTypePeriodRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recap/share/$token': {
+      id: '/recap/share/$token'
+      path: '/recap/share/$token'
+      fullPath: '/recap/share/$token'
+      preLoaderRoute: typeof RecapShareTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/share/playlist/$playlistId': {
       id: '/share/playlist/$playlistId'
       path: '/share/playlist/$playlistId'
@@ -679,6 +739,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LibraryRoute: LibraryRoute,
   LoginRoute: LoginRoute,
+  RecapsRoute: RecapsRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRouteWithChildren,
   SignupRoute: SignupRoute,
@@ -694,6 +755,8 @@ const rootRouteChildren: RootRouteChildren = {
   TrackTrackIdRoute: TrackTrackIdRoute,
   AlbumsIndexRoute: AlbumsIndexRoute,
   ArtistsIndexRoute: ArtistsIndexRoute,
+  RecapTypePeriodRoute: RecapTypePeriodRoute,
+  RecapShareTokenRoute: RecapShareTokenRoute,
   SharePlaylistPlaylistIdRoute: SharePlaylistPlaylistIdRoute,
 }
 export const routeTree = rootRouteImport

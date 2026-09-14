@@ -3,7 +3,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import {
   Mic2,
   Sparkles,
-  Wand2,
   AudioLines,
   Music,
   AlignLeft,
@@ -20,9 +19,10 @@ import {
   Waves,
   Wind,
   FileText,
+  Check,
 } from 'lucide-react'
 import { SettingsPage, SettingsSection, SettingRow } from '@/components/settings/SettingsPrimitives'
-import { Switch, Slider, SegmentedButton } from '@/components/md3'
+import { Switch, Slider, SegmentedButton, IconButton } from '@/components/md3'
 import {
   useSettingsStore,
   type LyricsProvider,
@@ -94,25 +94,12 @@ function LyricsPreviewCard() {
   }[position]
 
   return (
-    <div className="rounded-3xl border border-outline-variant/60 bg-surface-container p-5 sm:p-6 shadow-md3-1 transition-colors">
-      {/* MD3 Header bar */}
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container-high text-on-surface-variant type-label-md border border-outline-variant/40">
-          <Mic2 className="size-3.5 text-primary" />
-          <span>Previewing: <strong className="text-on-surface capitalize font-semibold">{animStyle.replace(/_/g, ' ')}</strong></span>
-        </div>
-        <button
-          type="button"
-          onClick={() => setPlaying((p) => !p)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-secondary-container state-layer text-on-secondary-container type-label-sm font-semibold transition-colors"
-        >
-          {playing ? <Pause className="size-3.5" /> : <Play className="size-3.5 fill-current" />}
-          <span>{playing ? 'Pause' : 'Play'}</span>
-        </button>
-      </div>
-
+    <div className="rounded-lg bg-surface-low overflow-hidden">
       {/* Viewport showing actual player lyrics display */}
-      <div className="rounded-2xl bg-surface-container-lowest border border-outline-variant/30 p-6 sm:p-8 min-h-[210px] flex flex-col justify-center overflow-hidden">
+      <div className="relative p-6 sm:p-8 min-h-[180px] flex flex-col justify-center overflow-hidden">
+        <IconButton label={playing ? 'Pause preview' : 'Play preview'} size="sm" onClick={() => setPlaying((p) => !p)} className="absolute top-2 right-2 text-on-surface-variant">
+          {playing ? <Pause /> : <Play className="fill-current" />}
+        </IconButton>
         <div className={cn('flex flex-col select-none transition-all duration-300', alignClass)} style={{ gap: `${(spacing - 0.5) * 1.25}rem` }}>
           {PREVIEW_LINES.map((l, i) => {
             const isActive = i === activeLine
@@ -319,21 +306,50 @@ function LyricsPreviewCard() {
         </div>
       </div>
 
-      {/* MD3 Timeline Progress Footer */}
-      <div className="mt-4 pt-3 flex flex-col gap-2">
-        <div className="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
-          <div
-            className="h-full bg-primary rounded-full transition-all duration-75"
-            style={{ width: `${Math.round(lineProgress * 100)}%` }}
-          />
-        </div>
-        <div className="flex items-center justify-between text-xs text-on-surface-variant">
-          <span>Rick Astley — Never Gonna Give You Up</span>
-          <span className="font-mono">
-            0:0{Math.floor(lineProgress * curLine.duration)} / 0:0{Math.ceil(curLine.duration)}
-          </span>
-        </div>
+      <div className="h-[3px] w-full bg-on-surface/10">
+        <div className="h-full bg-primary" style={{ width: `${Math.round(lineProgress * 100)}%` }} />
       </div>
+    </div>
+  )
+}
+
+const PROVIDERS: Array<{ id: LyricsProvider; name: string; desc: string; icon: React.FC<{ className?: string }> }> = [
+  { id: 'auto', name: 'Auto', desc: 'Best available · recommended', icon: Sparkles },
+  { id: 'betterlyrics', name: 'BetterLyrics', desc: 'Apple Music TTML, syllable timing', icon: Music },
+  { id: 'musixmatch', name: 'Musixmatch', desc: 'Word-level RichSync', icon: Mic2 },
+  { id: 'lrclib', name: 'LRCLIB', desc: 'Community synced LRC', icon: FileText },
+  { id: 'kugou', name: 'KuGou', desc: 'Asian and international catalog', icon: AudioLines },
+]
+
+const STYLES: Array<{ id: LyricsAnimationStyle; name: string; desc: string; icon: React.FC<{ className?: string }> }> = [
+  { id: 'apple_music_v2', name: 'Apple Music V2', desc: 'Letter-by-letter glow · recommended', icon: AudioLines },
+  { id: 'lyrics_v2_fluid', name: 'Fluid', desc: 'Liquid gradient sweep', icon: Waves },
+  { id: 'apple_music', name: 'Apple Music', desc: 'Word scale bump', icon: Music },
+  { id: 'glow', name: 'Glow', desc: 'Soft ambient glow', icon: Flame },
+  { id: 'fade', name: 'Fade', desc: 'Opacity crossfade', icon: Wind },
+  { id: 'classic', name: 'Classic', desc: 'Plain line highlight', icon: FileText },
+]
+
+/** MD3 list item with a trailing radio — compact alternative to card grids */
+function RadioRow<T extends string>({ id, name, desc, icon: Icon, value, onChange }: { id: T; name: string; desc: string; icon: React.FC<{ className?: string }>; value: T; onChange: (v: T) => void }) {
+  const selected = value === id
+  return (
+    <div
+      role="radio"
+      tabIndex={0}
+      aria-checked={selected}
+      onClick={() => onChange(id)}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onChange(id))}
+      className={cn('state-layer flex items-center gap-4 px-4 h-14 cursor-pointer outline-none select-none', selected && 'bg-secondary-container/30')}
+    >
+      <Icon className={cn('size-5 shrink-0', selected ? 'text-primary' : 'text-on-surface-variant')} />
+      <div className="min-w-0 flex-1">
+        <p className="type-body-lg text-on-surface truncate">{name}</p>
+        <p className="type-body-sm text-on-surface-variant truncate">{desc}</p>
+      </div>
+      <span className={cn('size-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors', selected ? 'border-primary bg-primary text-on-primary' : 'border-outline')}>
+        {selected && <Check className="size-3" strokeWidth={3} />}
+      </span>
     </div>
   )
 }
@@ -342,374 +358,89 @@ function LyricsSettings() {
   const s = useSettingsStore()
 
   return (
-    <SettingsPage
-      title="Lyrics"
-      description="Provider priority, Apple Music V2 syllable sync, typography and effects"
-    >
-      {/* Live Interactive Preview */}
-      <div className="mb-8">
-        <LyricsPreviewCard />
-      </div>
+    <SettingsPage title="Lyrics" description="Provider, sync style, typography">
+      <LyricsPreviewCard />
 
-      {/* Provider Selection */}
-      <SettingsSection title="Providers">
-        <SettingRow
-          icon={<Music />}
-          label="Preferred lyrics provider"
-          description="Choose preferred source for synchronized lyrics and word timings (piMusic library suite)"
-          stacked
-          control={
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full" role="radiogroup" aria-label="Lyrics Provider">
-              {[
-                {
-                  id: 'auto' as LyricsProvider,
-                  name: 'Auto Priority',
-                  desc: 'Prioritizes Apple Music TTML & Musixmatch RichSync with LRCLIB & KuGou fallback',
-                  icon: Sparkles,
-                  badge: 'Recommended',
-                },
-                {
-                  id: 'betterlyrics' as LyricsProvider,
-                  name: 'BetterLyrics',
-                  desc: 'Official Apple Music syllable & word-timed TTML from piMusic',
-                  icon: Music,
-                  badge: 'Apple Music TTML',
-                },
-                {
-                  id: 'musixmatch' as LyricsProvider,
-                  name: 'Musixmatch',
-                  desc: 'Word-level synchronized timings and rich subtitle lyrics catalog',
-                  icon: Mic2,
-                  badge: 'RichSync',
-                },
-                {
-                  id: 'lrclib' as LyricsProvider,
-                  name: 'LRCLIB',
-                  desc: 'Fast, community-driven synced lyrics with millisecond precision',
-                  icon: FileText,
-                  badge: 'Community LRC',
-                },
-                {
-                  id: 'kugou' as LyricsProvider,
-                  name: 'KuGou',
-                  desc: 'Extensive Asian, anime, and international synchronized LRC database',
-                  icon: AudioLines,
-                  badge: 'Global Catalog',
-                },
-              ].map((provider) => {
-                const selected = s.lyricsProvider === provider.id
-                const Icon = provider.icon
-                return (
-                  <div
-                    key={provider.id}
-                    role="radio"
-                    tabIndex={0}
-                    aria-checked={selected}
-                    onClick={() => s.set('lyricsProvider', provider.id)}
-                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && s.set('lyricsProvider', provider.id)}
-                    className={cn(
-                      'group relative p-3.5 rounded-2xl cursor-pointer select-none transition-[background-color,border-color,box-shadow] duration-200 ease-emphasized outline-none flex flex-col justify-between min-h-[96px]',
-                      selected
-                        ? 'bg-secondary-container/35 border-2 border-primary text-on-surface shadow-md3-1 ring-1 ring-primary/25'
-                        : 'bg-surface-container-low border border-outline-variant/60 text-on-surface hover:bg-surface-container hover:border-outline'
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3 mb-1.5">
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className={cn(
-                            'size-8 rounded-xl flex items-center justify-center transition-colors shrink-0',
-                            selected
-                              ? 'bg-primary text-on-primary shadow-sm'
-                              : 'bg-surface-container-high text-on-surface-variant group-hover:text-primary'
-                          )}
-                        >
-                          <Icon className="size-4" />
-                        </span>
-                        <div>
-                          <span className="type-title-sm font-semibold text-on-surface block leading-tight">{provider.name}</span>
-                          {provider.badge && (
-                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-container-highest text-primary border border-outline-variant/40">
-                              {provider.badge}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <span
-                        className={cn(
-                          'size-4 rounded-full border-2 transition-all mt-0.5 shrink-0 flex items-center justify-center',
-                          selected ? 'border-primary bg-primary' : 'border-outline-variant group-hover:border-outline'
-                        )}
-                      >
-                        {selected && <span className="size-1.5 rounded-full bg-on-primary" />}
-                      </span>
-                    </div>
-                    <p className="type-body-sm text-on-surface-variant line-clamp-2 text-xs leading-relaxed">
-                      {provider.desc}
-                    </p>
-                  </div>
-                )
-              })}
-            </div>
-          }
-        />
+      <SettingsSection title="Provider">
+        <div role="radiogroup" aria-label="Lyrics provider" className="divide-y divide-outline-variant/60">
+          {PROVIDERS.map((p) => (
+            <RadioRow key={p.id} {...p} value={s.lyricsProvider} onChange={(v) => s.set('lyricsProvider', v)} />
+          ))}
+        </div>
       </SettingsSection>
 
-      {/* Sync Animation Style - True MD3 Selectable Cards */}
-      <SettingsSection title="Sync Animation">
-        <SettingRow
-          icon={<Wand2 />}
-          label="Animation style"
-          description="Choose how synced text highlights as vocals play"
-          stacked
-          control={
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full" role="radiogroup" aria-label="Sync Animation Style">
-              {[
-                {
-                  id: 'apple_music_v2' as LyricsAnimationStyle,
-                  name: 'Apple Music V2',
-                  desc: 'Letter-by-letter fluid illumination with character glow (piTube Apple V2 engine)',
-                  icon: AudioLines,
-                  badge: 'Recommended',
-                },
-                {
-                  id: 'lyrics_v2_fluid' as LyricsAnimationStyle,
-                  name: 'Lyrics V2 Fluid',
-                  desc: 'Liquid horizontal feathered gradient sweep across words with subtle float',
-                  icon: Waves,
-                  badge: 'Liquid Fill',
-                },
-                {
-                  id: 'apple_music' as LyricsAnimationStyle,
-                  name: 'Apple Music',
-                  desc: 'Word-level smoothstep scale bump with warm glowing ambient shadow',
-                  icon: Music,
-                },
-                {
-                  id: 'glow' as LyricsAnimationStyle,
-                  name: 'Ambient Glow',
-                  desc: 'Soft radiant glow surrounding the active singing line',
-                  icon: Flame,
-                },
-                {
-                  id: 'fade' as LyricsAnimationStyle,
-                  name: 'Gentle Fade',
-                  desc: 'Subtle opacity crossfades between past and upcoming lines',
-                  icon: Wind,
-                },
-                {
-                  id: 'classic' as LyricsAnimationStyle,
-                  name: 'Classic Line',
-                  desc: 'Clean, instantaneous line highlight without letter interpolation',
-                  icon: FileText,
-                },
-              ].map((style) => {
-                const selected = s.lyricsAnimationStyle === style.id
-                const Icon = style.icon
-                return (
-                  <div
-                    key={style.id}
-                    role="radio"
-                    tabIndex={0}
-                    aria-checked={selected}
-                    onClick={() => s.set('lyricsAnimationStyle', style.id)}
-                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && s.set('lyricsAnimationStyle', style.id)}
-                    className={cn(
-                      'group relative p-4 rounded-2xl cursor-pointer select-none transition-[background-color,border-color,box-shadow] duration-200 ease-emphasized outline-none flex flex-col justify-between min-h-[116px]',
-                      selected
-                        ? 'bg-secondary-container/35 border-2 border-primary text-on-surface shadow-md3-1 ring-1 ring-primary/25'
-                        : 'bg-surface-container-low border border-outline-variant/60 text-on-surface hover:bg-surface-container hover:border-outline'
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3 mb-2">
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className={cn(
-                            'size-9 rounded-xl flex items-center justify-center transition-colors',
-                            selected
-                              ? 'bg-primary text-on-primary shadow-sm'
-                              : 'bg-surface-container-high text-on-surface-variant group-hover:text-primary'
-                          )}
-                        >
-                          <Icon className="size-4.5" />
-                        </span>
-                        <div>
-                          <span className="type-title-sm font-semibold text-on-surface block leading-tight">{style.name}</span>
-                          {style.badge && (
-                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-container-highest text-primary border border-outline-variant/40">
-                              {style.badge}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <span
-                        className={cn(
-                          'size-5 rounded-full border-2 flex items-center justify-center transition-all shrink-0 mt-0.5',
-                          selected ? 'border-primary bg-primary text-on-primary' : 'border-outline group-hover:border-on-surface'
-                        )}
-                      >
-                        {selected && <span className="size-2 rounded-full bg-surface" />}
-                      </span>
-                    </div>
-                    <p className="type-body-sm text-on-surface-variant/90 leading-snug">{style.desc}</p>
-                  </div>
-                )
-              })}
-            </div>
-          }
-        />
+      <SettingsSection title="Sync style">
+        <div role="radiogroup" aria-label="Sync animation style" className="divide-y divide-outline-variant/60">
+          {STYLES.map((st) => (
+            <RadioRow key={st.id} {...st} value={s.lyricsAnimationStyle} onChange={(v) => s.set('lyricsAnimationStyle', v)} />
+          ))}
+        </div>
+        <SettingRow icon={<Flame />} label="Glow" description="Highlight the active line" control={<Switch checked={s.lyricsGlow} onChange={(v) => s.set('lyricsGlow', v)} label="Glow" />} />
+        <SettingRow icon={<Eye />} label="Blur inactive lines" description="Depth-of-field effect" control={<Switch checked={s.lyricsBlur} onChange={(v) => s.set('lyricsBlur', v)} label="Blur inactive lines" />} />
       </SettingsSection>
 
-      {/* Visual Effects */}
-      <SettingsSection title="Visual Effects">
-        <SettingRow
-          icon={<Flame />}
-          label="Glowing lyrics"
-          description="Highlight the active singing line with dynamic ambient glow"
-          control={
-            <Switch
-              checked={s.lyricsGlow}
-              onChange={(v) => s.set('lyricsGlow', v)}
-              label="Glowing lyrics"
-            />
-          }
-        />
-        <SettingRow
-          icon={<Eye />}
-          label="Blur inactive lines"
-          description="Apply subtle depth-of-field blur to inactive lines (Apple Music style)"
-          control={
-            <Switch
-              checked={s.lyricsBlur}
-              onChange={(v) => s.set('lyricsBlur', v)}
-              label="Blur inactive lines"
-            />
-          }
-        />
-      </SettingsSection>
-
-      {/* Typography & Layout */}
-      <SettingsSection title="Typography & Layout">
+      <SettingsSection title="Text">
         <SettingRow
           icon={<AlignLeft />}
-          label="Text alignment"
-          description="Position lyrics on the screen"
-          stacked
+          label="Alignment"
           control={
             <SegmentedButton<LyricsTextPosition>
+              size="sm"
+              showCheck={false}
               value={s.lyricsTextPosition}
               onChange={(v) => s.set('lyricsTextPosition', v)}
               options={[
-                { value: 'left', label: 'Left', icon: <AlignLeft className="size-4" /> },
-                { value: 'center', label: 'Center', icon: <AlignCenter className="size-4" /> },
-                { value: 'right', label: 'Right', icon: <AlignRight className="size-4" /> },
+                { value: 'left', label: 'Left', icon: <AlignLeft /> },
+                { value: 'center', label: 'Center', icon: <AlignCenter /> },
+                { value: 'right', label: 'Right', icon: <AlignRight /> },
               ]}
-              className="w-full sm:w-auto"
             />
           }
         />
-
         <SettingRow
           icon={<Type />}
-          label="Text size"
-          description="Font size of lyric lines"
-          stacked
+          label="Size"
           control={
             <SegmentedButton<LyricsTextSize>
+              size="sm"
+              showCheck={false}
               value={s.lyricsTextSize}
               onChange={(v) => s.set('lyricsTextSize', v)}
               options={[
-                { value: 'sm', label: 'Small' },
-                { value: 'md', label: 'Medium' },
-                { value: 'lg', label: 'Large' },
-                { value: 'xl', label: 'Extra Large' },
+                { value: 'sm', label: 'S' },
+                { value: 'md', label: 'M' },
+                { value: 'lg', label: 'L' },
+                { value: 'xl', label: 'XL' },
               ]}
-              className="w-full sm:w-auto"
             />
           }
         />
-
         <SettingRow
           icon={<Layers />}
           label="Line spacing"
-          description={`${s.lyricsLineSpacing.toFixed(1)}× line height`}
+          description={`${s.lyricsLineSpacing.toFixed(1)}×`}
           stacked
           control={
-            <div className="flex items-center gap-4 w-full">
-              <Slider
-                value={s.lyricsLineSpacing}
-                min={1.0}
-                max={2.2}
-                step={0.1}
-                onChange={(v) => s.set('lyricsLineSpacing', Math.round(v * 10) / 10)}
-                className="flex-1"
-              />
-              <button
-                onClick={() => s.set('lyricsLineSpacing', 1.5)}
-                className="type-label-md text-primary font-semibold hover:underline"
-              >
-                Default
-              </button>
+            <div className="flex items-center gap-3 w-full">
+              <Slider value={s.lyricsLineSpacing} min={1.0} max={2.2} step={0.1} onChange={(v) => s.set('lyricsLineSpacing', Math.round(v * 10) / 10)} className="flex-1" aria-label="Line spacing" />
+              <button onClick={() => s.set('lyricsLineSpacing', 1.5)} disabled={s.lyricsLineSpacing === 1.5} className="type-label-lg text-primary px-2 disabled:opacity-40">Reset</button>
             </div>
           }
         />
       </SettingsSection>
 
-      {/* Behavior & Timing */}
-      <SettingsSection title="Behavior & Timing">
-        <SettingRow
-          label="Auto-scroll"
-          description="Keep active line centered in view during playback"
-          control={
-            <Switch
-              checked={s.lyricsAutoScroll}
-              onChange={(v) => s.set('lyricsAutoScroll', v)}
-              label="Auto-scroll"
-            />
-          }
-        />
-
-        <SettingRow
-          label="Tap to seek"
-          description="Click or tap any lyric line to jump playback to that timestamp"
-          control={
-            <Switch
-              checked={s.lyricsSeekOnClick}
-              onChange={(v) => s.set('lyricsSeekOnClick', v)}
-              label="Tap to seek"
-            />
-          }
-        />
-
+      <SettingsSection title="Behaviour">
+        <SettingRow label="Auto-scroll" description="Keep the active line centred" control={<Switch checked={s.lyricsAutoScroll} onChange={(v) => s.set('lyricsAutoScroll', v)} label="Auto-scroll" />} />
+        <SettingRow label="Tap to seek" description="Jump playback to a line" control={<Switch checked={s.lyricsSeekOnClick} onChange={(v) => s.set('lyricsSeekOnClick', v)} label="Tap to seek" />} />
         <SettingRow
           icon={<Clock />}
-          label="Sync offset nudge"
-          description={
-            s.lyricsSyncOffsetMs === 0
-              ? 'Synchronized with audio timestamp (0 ms)'
-              : s.lyricsSyncOffsetMs > 0
-                ? `Highlights +${s.lyricsSyncOffsetMs} ms earlier (anticipates vocal)`
-                : `Highlights ${s.lyricsSyncOffsetMs} ms later (delays highlight)`
-          }
+          label="Sync offset"
+          description={s.lyricsSyncOffsetMs === 0 ? '0 ms' : `${s.lyricsSyncOffsetMs > 0 ? '+' : ''}${s.lyricsSyncOffsetMs} ms · ${s.lyricsSyncOffsetMs > 0 ? 'earlier' : 'later'}`}
           stacked
           control={
-            <div className="flex items-center gap-4 w-full">
-              <Slider
-                value={s.lyricsSyncOffsetMs}
-                min={-3000}
-                max={3000}
-                step={50}
-                onChange={(v) => s.set('lyricsSyncOffsetMs', Math.round(v / 50) * 50)}
-                className="flex-1"
-              />
-              <button
-                onClick={() => s.set('lyricsSyncOffsetMs', 0)}
-                title="Reset offset to 0ms"
-                className="inline-flex items-center gap-1 type-label-md text-primary font-semibold hover:underline"
-              >
-                <RotateCcw className="size-3.5" />
-                <span>Reset</span>
-              </button>
+            <div className="flex items-center gap-3 w-full">
+              <Slider value={s.lyricsSyncOffsetMs} min={-3000} max={3000} step={50} onChange={(v) => s.set('lyricsSyncOffsetMs', Math.round(v / 50) * 50)} className="flex-1" aria-label="Sync offset" />
+              <button onClick={() => s.set('lyricsSyncOffsetMs', 0)} disabled={s.lyricsSyncOffsetMs === 0} className="type-label-lg text-primary px-2 inline-flex items-center gap-1 disabled:opacity-40"><RotateCcw className="size-4" /> Reset</button>
             </div>
           }
         />
