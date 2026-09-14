@@ -4,7 +4,7 @@ import { http, ApiError } from './client'
 
 export type RegistrationMode = 'open' | 'invite' | 'allowlist' | 'closed'
 export type UserAccessStatus = 'active' | 'locked' | 'restricted'
-export interface RequiredChat { chat_id?: number; title: string | null; invite_link: string | null }
+export interface RequiredChat { chat_id?: number; title: string | null; invite_link: string | null; is_private?: boolean }
 
 export interface AccessStatus { registration_mode: RegistrationMode; enforce_membership: boolean; required_chats: RequiredChat[] }
 
@@ -40,14 +40,14 @@ export async function verifyMembership(): Promise<{ ok: boolean; status: UserAcc
 
 /* ---------------- admin ---------------- */
 
-export interface AccessPolicy { registration_mode: RegistrationMode; enforce_membership: boolean; required_chats: Array<{ chat_id: number; title: string | null; invite_link: string | null }>; lock_message: string; updated_at: number }
+export interface AccessPolicy { registration_mode: RegistrationMode; enforce_membership: boolean; required_chats: Array<{ chat_id: number; title: string | null; invite_link: string | null; is_private?: boolean }>; lock_message: string; updated_at: number }
 export interface InviteCode { code: string; created_by: number; created_at: number; max_uses: number; uses: number; used_by: number[]; expires_at: number | null; revoked_at: number | null; note: string | null }
 export interface ManagedUser { user_id: number; username: string | null; first_name: string | null; profile_url: string | null; telegram_username: string | null; status: UserAccessStatus; lock_reason: string | null; locked_at: number | null; token_version: number; created_at: number | null }
 
 export const adminAccess = {
   policy: async () => (await http.get<{ policy: AccessPolicy }>(API_ENDPOINTS.ADMIN_ACCESS_POLICY, { noDedupe: true })).policy,
   patchPolicy: async (patch: Partial<Pick<AccessPolicy, 'registration_mode' | 'enforce_membership' | 'lock_message'>>) => (await http.patch<{ policy: AccessPolicy }>(API_ENDPOINTS.ADMIN_ACCESS_POLICY, patch)).policy,
-  addRequiredChat: async (chat_id: number, title?: string, invite_link?: string) => (await http.post<{ policy: AccessPolicy }>(API_ENDPOINTS.ADMIN_ACCESS_REQUIRED_CHATS, { chat_id, title, invite_link })).policy,
+  addRequiredChat: async (chat_id: number, title?: string, invite_link?: string, is_private?: boolean) => (await http.post<{ policy: AccessPolicy }>(API_ENDPOINTS.ADMIN_ACCESS_REQUIRED_CHATS, { chat_id, title, invite_link, is_private })).policy,
   removeRequiredChat: async (chat_id: number) => (await http.delete<{ policy: AccessPolicy }>(API_ENDPOINTS.ADMIN_ACCESS_REQUIRED_CHAT(chat_id))).policy,
   invites: async (includeDead = false) => (await http.get<{ items: InviteCode[] }>(API_ENDPOINTS.ADMIN_ACCESS_INVITES, { params: { include_dead: includeDead }, noDedupe: true })).items,
   createInvite: async (body: { max_uses: number; ttl_days: number | null; note?: string }) => (await http.post<{ invite: InviteCode }>(API_ENDPOINTS.ADMIN_ACCESS_INVITES, body)).invite,

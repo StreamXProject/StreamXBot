@@ -16,7 +16,7 @@ export interface AccessBlock {
   code: 'account_locked' | 'membership_required'
   message: string
   reason?: string | null
-  required_chats: Array<{ title: string | null; invite_link: string | null }>
+  required_chats: Array<{ title: string | null; invite_link: string | null; is_private?: boolean }>
 }
 
 export type SessionKind = 'none' | 'guest' | 'user'

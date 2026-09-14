@@ -66,22 +66,28 @@ export const AccessBlockedScreen: React.FC<{ block: AccessBlock }> = ({ block })
                   <a href={c.invite_link} target="_blank" rel="noreferrer" className="state-layer inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-primary text-on-primary type-label-lg shrink-0">
                     Join <ExternalLink className="size-4" />
                   </a>
+                ) : c.is_private ? (
+                  <span className="type-label-sm text-on-surface-variant px-3 py-1 rounded-full bg-surface-container-highest shrink-0">
+                    Private group · Invite only
+                  </span>
                 ) : (
-                  <span className="type-label-md text-on-surface-variant">Ask an admin for the link</span>
+                  <span className="type-label-sm text-outline px-3 py-1 rounded-full bg-surface-container-highest shrink-0" title="Bot lacks admin access to export invite link">
+                    No invite link · Ask admin
+                  </span>
                 )}
               </div>
             ))}
           </div>
         )}
 
-        {locked && block.reason && block.reason !== block.message && <p className="type-body-sm text-on-surface-variant">Reason: {block.reason}</p>}
+        {locked && block.reason && block.reason !== block.message && <p className="type-body-sm text-on-surface-variant text-center">Reason: {block.reason}</p>}
 
-        <div className="flex flex-wrap gap-2 justify-end">
+        <div className="flex flex-wrap gap-2 justify-center">
           <Button variant="text" icon={<LogOut />} onClick={() => void signOut()}>Sign out</Button>
           {!locked && <Button icon={<RefreshCw />} loading={checking} onClick={() => void verify()}>I’ve joined — verify</Button>}
           {locked && <Button variant="tonal" icon={<RefreshCw />} loading={checking} onClick={async () => { setChecking(true); try { await qc.invalidateQueries(); setAccessBlock(null) } finally { setChecking(false) } }}>Try again</Button>}
         </div>
-        <p className="type-body-sm text-on-surface-variant/70">{locked ? 'If you think this is a mistake, contact the server administrator on Telegram.' : 'Access is restored automatically as soon as you rejoin.'}</p>
+        <p className="type-body-sm text-on-surface-variant/70 text-center">{locked ? 'If you think this is a mistake, contact the server administrator on Telegram.' : 'Access is restored automatically as soon as you rejoin.'}</p>
       </div>
     </div>
   )

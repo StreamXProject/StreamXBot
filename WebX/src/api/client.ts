@@ -112,6 +112,10 @@ function errorMessage(status: number, body: unknown, statusText: string): string
     const b = body as Record<string, unknown>
     const d = b.detail ?? b.message ?? b.error
     if (typeof d === 'string') return d
+    if (d && typeof d === 'object') {
+      const dm = (d as Record<string, unknown>).message ?? (d as Record<string, unknown>).detail
+      if (typeof dm === 'string') return dm
+    }
     if (Array.isArray(d) && d[0] && typeof d[0] === 'object' && 'msg' in (d[0] as object)) return String((d[0] as { msg: string }).msg)
   }
   if (typeof body === 'string' && body.length < 200) return body
@@ -166,7 +170,7 @@ export async function request<T = unknown>(method: HttpMethod, path: string, opt
           window.dispatchEvent(new CustomEvent('webx:unauthorized', { detail: { url } }))
         }
         // Account locked / chat membership required → the shell shows a dedicated blocked screen
-        if (res.status === 403 && token && typeof window !== 'undefined' && body && typeof body === 'object') {
+        if (res.status === 403 && typeof window !== 'undefined' && body && typeof body === 'object') {
           const raw = body as { detail?: unknown }
           const inner = (typeof raw.detail === 'object' && raw.detail !== null ? raw.detail : raw) as { detail?: unknown }
           if (inner.detail === 'account_locked' || inner.detail === 'membership_required') {

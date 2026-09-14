@@ -109,7 +109,19 @@ function SignupPage() {
           {missingChats.map((c, i) => (
             <div key={i} className="flex items-center justify-between gap-3 h-12 px-3 rounded-2xl bg-surface-container">
               <span className="type-body-md text-on-surface truncate">{c.title || 'Required chat'}</span>
-              {c.invite_link && <a href={c.invite_link} target="_blank" rel="noreferrer" className="state-layer inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-primary text-on-primary type-label-md shrink-0">Join <ExternalLink className="size-3.5" /></a>}
+              {c.invite_link ? (
+                <a href={c.invite_link} target="_blank" rel="noreferrer" className="state-layer inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-primary text-on-primary type-label-md shrink-0">
+                  Join <ExternalLink className="size-3.5" />
+                </a>
+              ) : c.is_private ? (
+                <span className="type-label-sm text-on-surface-variant px-2.5 py-0.5 rounded-full bg-surface-container-highest shrink-0" title="Private / secret group">
+                  Private group
+                </span>
+              ) : (
+                <span className="type-label-sm text-outline px-2.5 py-0.5 rounded-full bg-surface-container-highest shrink-0" title="Bot lacks admin access to generate an invite link">
+                  No invite link · Ask admin
+                </span>
+              )}
             </div>
           ))}
           <p className="type-body-sm text-on-surface-variant px-1">Join, then submit again.</p>

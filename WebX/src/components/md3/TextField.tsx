@@ -12,7 +12,7 @@ export interface TextFieldProps extends Omit<React.InputHTMLAttributes<HTMLInput
 }
 
 export const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
-  ({ label, supporting, error, leading, trailing, variant = 'outlined', className, containerClassName, id, ...rest }, ref) => {
+  ({ label, supporting, error, leading, trailing, variant = 'outlined', className, containerClassName, id, placeholder, ...rest }, ref) => {
     const autoId = useId()
     const inputId = id ?? autoId
     const hasError = Boolean(error)
@@ -44,10 +44,12 @@ export const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
             <input
               ref={inputRef}
               id={inputId}
-              placeholder={label ? ' ' : rest.placeholder}
+              placeholder={placeholder || (label ? ' ' : undefined)}
               className={cn(
-                'peer w-full h-full bg-transparent outline-none text-on-surface type-body-lg placeholder:text-on-surface-variant/60',
-                label && 'pt-3',
+                'peer w-full h-full bg-transparent outline-none text-on-surface type-body-lg',
+                label
+                  ? 'pt-3 placeholder:opacity-0 focus:placeholder:opacity-100 placeholder:text-on-surface-variant/60 placeholder:transition-opacity'
+                  : 'placeholder:text-on-surface-variant/60',
                 className
               )}
               aria-invalid={hasError}
