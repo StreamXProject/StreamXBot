@@ -17,7 +17,7 @@ export const SETTINGS_SECTIONS = [
   { to: '/settings/equalizer', label: 'Equalizer', description: 'Bands and presets', icon: AudioLines },
   { to: '/settings/integrations', label: 'Integrations', description: 'Last.fm, Discord', icon: Plug },
   { to: '/settings/app', label: 'App & offline', description: 'Install, updates, storage', icon: Smartphone },
-  { to: '/settings/server', label: 'Server & endpoints', description: 'Address, connection, demo', icon: Server },
+  { to: '/settings/server', label: 'Server & endpoints', description: 'Address, connection', icon: Server },
   { to: '/settings/account', label: 'Account', description: 'Profile, session, password', icon: User },
   { to: '/settings/library', label: 'Library & data', description: 'Sync, cache, export', icon: Database },
   { to: '/settings/shortcuts', label: 'Keyboard shortcuts', description: 'Key bindings', icon: Keyboard },

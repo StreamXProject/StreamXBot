@@ -38,7 +38,6 @@ function buildScheme(def: ThemeDefinition, isDark: boolean): DynamicScheme {
   const seedHct = Hct.fromInt(argbFromHex(def.seed))
   let scheme: DynamicScheme = new Ctor(seedHct, isDark, def.contrast)
 
-  // Optional custom secondary / tertiary key colors
   if (def.secondarySeed || def.tertiarySeed) {
     scheme = new DynamicScheme({
       sourceColorHct: seedHct,

@@ -33,25 +33,21 @@ export function applyTheme(theme: ResolvedTheme, opts: ApplyOptions): void {
   const colors = opts.colorsOverride ?? (opts.mode === 'dark' ? theme.dark : theme.light)
 
   const style = root.style
-  // Color roles
   for (const [role, hex] of Object.entries(colors)) {
     style.setProperty(`--md-sys-color-${kebab(role)}`, hex)
     // rgb triplets for alpha compositing (state layers, scrims)
     style.setProperty(`--md-sys-color-${kebab(role)}-rgb`, hexToRgbTriplet(hex))
   }
 
-  // Shape
   for (const [token, px] of Object.entries(SHAPE_BASE)) {
     style.setProperty(`--md-sys-shape-corner-${kebab(token)}`, `${Math.round(px * def.shape.scale)}px`)
   }
   style.setProperty('--md-sys-shape-corner-full', '9999px')
 
-  // Typography
   style.setProperty('--md-ref-typeface-plain', def.typography.body)
   style.setProperty('--md-ref-typeface-brand', def.typography.headline ?? def.typography.body)
   ensureGoogleFonts(def.typography.googleFonts)
 
-  // Effects
   root.dataset.theme = def.id
   root.dataset.mode = opts.mode
   root.dataset.glass = String(def.effects.glass)

@@ -67,7 +67,6 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
 
   toggleLike: async (track) => {
     const wasLiked = get().likedIds.has(track.id)
-    // optimistic
     const ids = new Set(get().likedIds)
     let tracks = get().likedTracks
     if (wasLiked) {
@@ -85,7 +84,6 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
         if (wasLiked) await favApi.removeFavourite(track.id)
         else await favApi.addFavourite(track.id)
       } catch (err) {
-        // revert
         const revertIds = new Set(get().likedIds)
         let revertTracks = get().likedTracks
         if (wasLiked) {
@@ -156,9 +154,7 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
     if (!isUserSession()) return
     try {
       set({ playlists: await plApi.fetchMyPlaylists() })
-    } catch {
-      /* keep stale */
-    }
+    } catch {}
   },
 
   createPlaylist: async (name) => {

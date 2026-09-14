@@ -79,9 +79,7 @@ function readInitial() {
     dynamicColor = localStorage.getItem(KEYS.dynamic) === 'true'
     const mo = localStorage.getItem(KEYS.motion) as MotionPref | null
     if (mo === 'system' || mo === 'full' || mo === 'reduced') motion = mo
-  } catch {
-    /* ignore */
-  }
+  } catch {}
   const activeTheme = findTheme(activeThemeId, themes) ?? themes[0]
   return { themes, activeThemeId: activeTheme.id, mode, dynamicColor, motion, activeTheme }
 }
@@ -114,7 +112,6 @@ export const useThemeStore = create<ThemeStoreState>()(
           return
         }
         const seed = await seedFromImage(url)
-        // Only apply if still relevant
         set({ dynamicSeed: seed })
       },
       setMotion: (m) => {
@@ -172,10 +169,6 @@ export const useThemeStore = create<ThemeStoreState>()(
     }
   })
 )
-
-/* ------------------------------------------------------------------ */
-/* Side effects: apply to DOM whenever relevant state changes          */
-/* ------------------------------------------------------------------ */
 
 function dynamicColors(seed: string, isDark: boolean, contrast: number, vibrant: boolean): ColorScheme {
   const hct = Hct.fromInt(argbFromHex(seed))

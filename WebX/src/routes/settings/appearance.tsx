@@ -171,7 +171,6 @@ function AppearanceSettings() {
         <SettingRow label="Quality badges" description="FLAC / ALAC / MP3 tags" control={<Switch checked={showQualityBadges} onChange={(v) => setSetting('showQualityBadges', v)} label="Quality badges" />} />
       </SettingsSection>
 
-      {/* Theme card menu */}
       <Menu
         open={Boolean(menu)}
         onClose={() => setMenu(null)}

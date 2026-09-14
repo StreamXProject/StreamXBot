@@ -54,7 +54,6 @@ function IntegrationsSettings() {
   const connected = Boolean(s.lastfmSessionKey)
   const hasKeys = Boolean(s.lastfmApiKey.trim() && s.lastfmApiSecret.trim())
 
-  // Discord draft states
   const [tokenDraft, setTokenDraft] = useState(s.discordUserToken)
   const [showToken, setShowToken] = useState(false)
   const [showTokenHelp, setShowTokenHelp] = useState(false)
@@ -103,7 +102,6 @@ function IntegrationsSettings() {
 
   return (
     <SettingsPage title="Integrations" description="Synced to your account across devices">
-      {/* ---------- Last.fm ---------- */}
       <SettingsSection title="Last.fm scrobbling" description="Sent at the threshold below · 4 min max">
         <SettingRow
           icon={<Radio />}
@@ -242,7 +240,6 @@ function IntegrationsSettings() {
         )}
       </SettingsSection>
 
-      {/* ---------- Discord ---------- */}
       <SettingsSection
         title="Discord Rich Presence"
         description="Track, artwork and timer on your profile"
@@ -309,7 +306,6 @@ function IntegrationsSettings() {
           stacked
           control={
             <div className="flex flex-col gap-3 w-full">
-              {/* QR Code Login card */}
               <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-secondary-container/30 rounded-xs border border-outline-variant/60">
                 <div className="flex items-center gap-3">
                   <div className="size-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center shrink-0">

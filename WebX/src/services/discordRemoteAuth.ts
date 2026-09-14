@@ -114,9 +114,7 @@ export class DiscordRemoteAuthClient {
             this.cleanup()
             break
         }
-      } catch {
-        /* ignore JSON parse errors */
-      }
+      } catch {}
     }
 
     this.ws.onerror = () => {
@@ -153,7 +151,6 @@ export class DiscordRemoteAuthClient {
         this.callbacks.onQrUrl?.(initData.url)
       }
 
-      // Poll every 1.5s
       this.pollTimer = window.setInterval(async () => {
         if (this.cancelled || !this.activeSessionId) return
         try {
@@ -183,9 +180,7 @@ export class DiscordRemoteAuthClient {
             this.callbacks.onError?.(statusData.error || 'Authentication failed')
             this.cancel()
           }
-        } catch {
-          /* ignore transient network blips while polling */
-        }
+        } catch {}
       }, 1500)
     } catch (exc) {
       if (!this.cancelled) {
@@ -199,9 +194,7 @@ export class DiscordRemoteAuthClient {
     this.cancelled = true
     if (this.activeSessionId) {
       const base = getRestBase()
-      fetch(`${base}/api/discord/remote-auth/cancel/${this.activeSessionId}`, { method: 'POST' }).catch(() => {
-        /* ignore */
-      })
+      fetch(`${base}/api/discord/remote-auth/cancel/${this.activeSessionId}`, { method: 'POST' }).catch(() => {})
       this.activeSessionId = null
     }
     this.cleanup()
@@ -215,9 +208,7 @@ export class DiscordRemoteAuthClient {
     if (this.ws) {
       try {
         this.ws.close()
-      } catch {
-        /* ignore */
-      }
+      } catch {}
       this.ws = null
     }
   }

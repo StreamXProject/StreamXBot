@@ -107,7 +107,6 @@ function LyricsPreviewCard() {
 
   return (
     <div className="rounded-lg bg-surface-low overflow-hidden">
-      {/* Viewport showing actual player lyrics display */}
       <div className="relative p-6 sm:p-8 min-h-[180px] flex flex-col justify-center overflow-hidden">
         <IconButton label={playing ? 'Pause preview' : 'Play preview'} size="sm" onClick={() => setPlaying((p) => !p)} className="absolute top-2 right-2 text-on-surface-variant">
           {playing ? <Pause /> : <Play className="fill-current" />}
@@ -309,7 +308,6 @@ function LyricsPreviewCard() {
               )
             }
 
-            // Classic / Glow / Fade
             return (
               <div
                 key={i}

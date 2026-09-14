@@ -50,7 +50,6 @@ export async function renderShareCard(snap: RecapSnapshot): Promise<Blob> {
   const top = s.topTracks[0]
   const cover = top?.track.cover_url ? await loadImage(top.track.cover_url) : null
 
-  // background: blurred cover + tint
   ctx.fillStyle = surface
   ctx.fillRect(0, 0, W, H)
   if (cover) {
@@ -78,7 +77,6 @@ export async function renderShareCard(snap: RecapSnapshot): Promise<Blob> {
   ctx.fillStyle = variant
   ctx.fillText('in WebX', 96, 330)
 
-  // cover
   const size = 620
   const cx = (W - size) / 2
   const cy = 440
@@ -92,7 +90,6 @@ export async function renderShareCard(snap: RecapSnapshot): Promise<Blob> {
   }
   ctx.restore()
 
-  // big number
   ctx.fillStyle = onSurface
   ctx.font = `800 170px ${font}`
   const minutes = s.totalMinutes.toLocaleString()
@@ -101,7 +98,6 @@ export async function renderShareCard(snap: RecapSnapshot): Promise<Blob> {
   ctx.font = `500 48px ${font}`
   ctx.fillText('minutes of music', 96, 1310)
 
-  // stat row
   const stats: [string, string][] = [
     [s.totalPlays.toLocaleString(), 'plays'],
     [s.uniqueArtists.toLocaleString(), 'artists'],
@@ -117,7 +113,6 @@ export async function renderShareCard(snap: RecapSnapshot): Promise<Blob> {
     ctx.fillText(l, x, 1475)
   })
 
-  // top artist / track
   const rows: [string, string][] = []
   if (s.topArtists[0]) rows.push(['#1 artist', s.topArtists[0].name])
   if (top) rows.push(['#1 track', `${top.track.title}${top.track.artist ? ` · ${top.track.artist}` : ''}`])

@@ -79,7 +79,6 @@ export const DiscordQrModal: React.FC<DiscordQrModalProps> = ({ open, onClose })
     }
   }, [open])
 
-  // Draw QR code whenever qrUrl changes or canvas mounts
   useEffect(() => {
     if (qrUrl && canvasRef.current) {
       QRCode.toCanvas(canvasRef.current, qrUrl, {
@@ -131,7 +130,6 @@ export const DiscordQrModal: React.FC<DiscordQrModalProps> = ({ open, onClose })
       }
     >
       <div className="flex flex-col items-center text-center py-2">
-        {/* Loading state */}
         {stage === 'connecting' && (
           <div className="flex flex-col items-center justify-center py-10 gap-3">
             <Loader2 className="size-10 animate-spin text-primary" />
@@ -139,7 +137,6 @@ export const DiscordQrModal: React.FC<DiscordQrModalProps> = ({ open, onClose })
           </div>
         )}
 
-        {/* QR Code display */}
         {stage === 'qr' && (
           <div className="flex flex-col items-center gap-4">
             <div className="p-3 bg-white rounded-xl shadow-md3-1 flex items-center justify-center">
@@ -160,7 +157,6 @@ export const DiscordQrModal: React.FC<DiscordQrModalProps> = ({ open, onClose })
           </div>
         )}
 
-        {/* Scanned / Confirming state */}
         {(stage === 'scanned' || stage === 'confirming') && (
           <div className="flex flex-col items-center gap-4 py-6">
             <div className="relative">
@@ -189,7 +185,6 @@ export const DiscordQrModal: React.FC<DiscordQrModalProps> = ({ open, onClose })
           </div>
         )}
 
-        {/* Success state */}
         {stage === 'success' && (
           <div className="flex flex-col items-center gap-3 py-6">
             <div className="size-16 rounded-full bg-tertiary/20 text-tertiary flex items-center justify-center animate-bounce">
@@ -204,7 +199,6 @@ export const DiscordQrModal: React.FC<DiscordQrModalProps> = ({ open, onClose })
           </div>
         )}
 
-        {/* Error state */}
         {stage === 'error' && (
           <div className="flex flex-col items-center gap-3 py-6">
             <div className="size-14 rounded-full bg-error/20 text-error flex items-center justify-center">

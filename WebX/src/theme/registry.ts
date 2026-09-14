@@ -40,9 +40,7 @@ export function loadUserThemes(): ThemeDefinition[] {
 export function saveUserThemes(themes: ThemeDefinition[]): void {
   try {
     localStorage.setItem(USER_THEMES_KEY, JSON.stringify(themes.filter((t) => !t.builtIn)))
-  } catch {
-    /* quota */
-  }
+  } catch {}
 }
 
 /** Parse a theme JSON document (string or object). Throws a readable error. */

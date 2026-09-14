@@ -22,14 +22,12 @@ function AccountSettings() {
   const navigate = useNavigate()
   const { data: me } = useMe()
 
-  // Server password dialog state
   const [pwOpen, setPwOpen] = useState(false)
   const [serverPw, setServerPw] = useState('')
   const [serverPw2, setServerPw2] = useState('')
   const [showServerPw, setShowServerPw] = useState(false)
   const [pwErr, setPwErr] = useState<string | null>(null)
 
-  // Account credentials dialog state
   const [credOpen, setCredOpen] = useState(false)
   const [credUsername, setCredUsername] = useState('')
   const [credPw, setCredPw] = useState('')

@@ -30,7 +30,6 @@ export async function unlockAudioOnce(): Promise<void> {
   isUnlocked = true
   w[AUDIO_UNLOCK_KEY] = true
 
-  // 1. Resume Web Audio API
   try {
     const AudioContextCtor =
       (window as unknown as { AudioContext?: typeof AudioContext }).AudioContext ||
@@ -52,14 +51,10 @@ export async function unlockAudioOnce(): Promise<void> {
       } finally {
         try {
           await ctx.close()
-        } catch {
-          /* ignore */
-        }
+        } catch {}
       }
     }
-  } catch {
-    /* ignore */
-  }
+  } catch {}
 
   equalizer.resume()
 
@@ -73,9 +68,7 @@ export async function unlockAudioOnce(): Promise<void> {
     await a.play()
     a.pause()
     a.remove()
-  } catch {
-    /* ignore */
-  }
+  } catch {}
 }
 
 /**

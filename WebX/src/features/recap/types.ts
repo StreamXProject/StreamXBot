@@ -84,8 +84,6 @@ export interface RecapPublicSummary {
   personality: RecapPersonality[]
 }
 
-/* ---------- story model (renderer-independent) ---------- */
-
 export type SceneAnimation = 'fade' | 'scaleFade' | 'slideUp' | 'zoom'
 
 interface SceneBase { id: string; durationMs: number; enter: SceneAnimation; artwork?: string | null }

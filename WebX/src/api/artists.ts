@@ -19,9 +19,7 @@ export async function fetchArtistById(artistId: string, signal?: AbortSignal): P
     try {
       const t = await http.get<Record<string, unknown> | unknown[]>(API_ENDPOINTS.ARTIST_TRACKS(artistId), { signal, params: { limit: 200 } })
       all = parseTracks(Array.isArray(t) ? t : t.items ?? t.tracks)
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }
   const rawAlbums = (res.releases ?? res.albums ?? []) as unknown[]
   const albums = (Array.isArray(rawAlbums) ? rawAlbums : []).map((a) => AlbumSchema.safeParse(a)).filter((r) => r.success).map((r) => r.data!)

@@ -34,9 +34,7 @@ function loadQueue(): ListeningEventPayload[] {
 function saveQueue(q: ListeningEventPayload[]) {
   try {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(q.slice(-500)))
-  } catch {
-    /* ignore */
-  }
+  } catch {}
 }
 
 function canRecord(): boolean {
@@ -76,8 +74,11 @@ export async function flushListeningEvents(): Promise<void> {
   try {
     await postListeningEvents(q.slice(0, 200))
     saveQueue(loadQueue().filter((e) => !q.slice(0, 200).some((s) => s.id === e.id)))
-  } catch {
-    /* keep queued — retried on the next flush */
+  } catch (err) {
+    const status = (err as { status?: number })?.status
+    if (status === 404 || status === 405) {
+      saveQueue([])
+    }
   } finally {
     flushing = false
   }

@@ -17,9 +17,7 @@ export async function fetchAlbumById(albumId: string, signal?: AbortSignal): Pro
     try {
       const t = await http.get<Record<string, unknown> | unknown[]>(API_ENDPOINTS.ALBUM_TRACKS(albumId), { signal })
       tracks = parseTracks(Array.isArray(t) ? t : t.items ?? t.tracks)
-    } catch {
-      /* album without tracks */
-    }
+    } catch {}
   }
   return { ...album, tracks }
 }

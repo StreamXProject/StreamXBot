@@ -124,9 +124,7 @@ export async function updateUserIntegrations(payload: UserIntegrations): Promise
 export async function logoutServer(): Promise<void> {
   try {
     await http.post(API_ENDPOINTS.AUTH_LOGOUT, undefined, { timeoutMs: 4000 })
-  } catch {
-    /* best effort */
-  }
+  } catch {}
 }
 
 export interface TelegramConfig {

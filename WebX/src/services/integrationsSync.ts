@@ -18,7 +18,6 @@ export function hydrateIntegrationsFromUser(integrations?: UserIntegrations): vo
   try {
     const s = useSettingsStore.getState()
 
-    // 1. Hydrate Discord
     if (integrations.discord) {
       const d = integrations.discord
       if (typeof d.token === 'string' && d.token.trim()) {
@@ -41,7 +40,6 @@ export function hydrateIntegrationsFromUser(integrations?: UserIntegrations): vo
       }
     }
 
-    // 2. Hydrate Last.fm
     if (integrations.lastfm) {
       const l = integrations.lastfm
       if (typeof l.session_key === 'string' && l.session_key.trim()) {

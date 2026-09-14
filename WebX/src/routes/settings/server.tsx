@@ -62,6 +62,7 @@ function ServerSettings() {
     setApiBaseUrl(base)
     setServerStatus(ok ? 'online' : 'offline')
     qc.clear()
+    await qc.invalidateQueries()
     toast(ok ? 'Server saved and reachable' : 'Server saved — not reachable right now', { variant: ok ? 'default' : 'error' })
   }
 
@@ -84,10 +85,10 @@ function ServerSettings() {
             className="font-mono"
           />
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => void save()} disabled={!draft.trim() || (!dirty && !result)} loading={testing} icon={<Plug />}>
+            <Button onClick={() => void save()} disabled={!draft.trim() || testing} loading={testing} icon={<Plug />}>
               {dirty ? 'Save & connect' : 'Reconnect'}
             </Button>
-            <Button variant="tonal" onClick={() => void test()} loading={testing} icon={<Activity />}>Test</Button>
+            <Button variant="tonal" onClick={() => void test()} disabled={!draft.trim() || testing} loading={testing} icon={<Activity />}>Test</Button>
             {result && (
               <span className={cn('inline-flex items-center gap-1.5 type-label-lg', result.health.ok ? 'text-tertiary' : 'text-error')}>
                 {result.health.ok ? <Check className="size-4" /> : <X className="size-4" />}
@@ -115,7 +116,7 @@ function ServerSettings() {
               key={u}
               label={<span className="font-mono text-[13px]">{u}</span>}
               description={u === apiBaseUrl ? 'Active' : undefined}
-              onClick={() => setDraft(u)}
+              onClick={() => { setDraft(u); void test(u) }}
               control={
                 <button onClick={(e) => { e.stopPropagation(); removeKnownServer(u) }} aria-label="Forget" className="state-layer size-8 rounded-full inline-flex items-center justify-center text-on-surface-variant"><Trash2 className="size-4" /></button>
               }

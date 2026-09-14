@@ -74,7 +74,6 @@ function SearchPage() {
 
   return (
     <PageContainer className="space-y-6">
-      {/* Search bar */}
       <div className="relative max-w-2xl">
         <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-on-surface-variant pointer-events-none" />
         <input
@@ -95,7 +94,6 @@ function SearchPage() {
         {isFetching && !isLoading && <span className="absolute right-12 top-1/2 -translate-y-1/2 size-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />}
       </div>
 
-      {/* Filters */}
       {debounced && (
         <div className="flex flex-wrap items-center gap-2">
           {(['all', 'tracks', 'albums', 'artists'] as Filter[]).map((t) => (
@@ -104,7 +102,6 @@ function SearchPage() {
         </div>
       )}
 
-      {/* Idle state: recent + topics */}
       {!debounced && (
         <div className="space-y-8">
           {recent.length > 0 && (
@@ -139,7 +136,6 @@ function SearchPage() {
         </div>
       )}
 
-      {/* Results */}
       {debounced && isError && <ErrorState error={error} onRetry={() => refetch()} compact />}
       {debounced && isLoading && <TrackRowSkeleton count={8} />}
       {debounced && !isLoading && nothing && (
@@ -164,9 +160,7 @@ function SearchPage() {
                         const artist = await fetchArtistById(a.id)
                         const t = artist.all_tracks.length ? artist.all_tracks : artist.top_tracks
                         if (t.length) void playTrackWithQueue(t, 0, { type: 'artist', id: a.id, title: a.name })
-                      } catch {
-                        /* noop */
-                      }
+                      } catch {}
                     }}
                   />
                 ))}
@@ -188,9 +182,7 @@ function SearchPage() {
                       try {
                         const album = await fetchAlbumById(a.id)
                         if (album.tracks.length) void playTrackWithQueue(album.tracks, 0, { type: 'album', id: a.id, title: a.title, href: `/album/${a.id}` })
-                      } catch {
-                        /* noop */
-                      }
+                      } catch {}
                     }}
                   />
                 ))}

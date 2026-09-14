@@ -82,7 +82,6 @@ export const PersistentPlayer: React.FC = () => {
     return (
       <div className="hidden md:block relative h-[var(--webx-player-height)] shrink-0 elev-2 bg-surface-container border-t border-outline-variant/40 select-none">
         <div className="grid h-full grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)] items-center gap-4 px-4 lg:px-6 text-on-surface-variant">
-          {/* Track */}
           <div className="flex items-center gap-3 min-w-0">
             <div className="size-12 rounded-sm bg-surface-highest flex items-center justify-center shrink-0">
               <Music2 className="size-5 opacity-60" />
@@ -93,12 +92,10 @@ export const PersistentPlayer: React.FC = () => {
             </div>
           </div>
 
-          {/* Controls */}
           <div className="flex flex-col items-center justify-center min-w-0 max-w-[520px] w-full mx-auto">
             <PlaybackControls className="opacity-50 pointer-events-none" />
           </div>
 
-          {/* Right */}
           <div className="flex items-center justify-end gap-1 lg:gap-1.5 min-w-0 opacity-40 pointer-events-none">
             <VolumeControl className="hidden lg:flex" />
           </div>
@@ -136,9 +133,7 @@ export const PersistentPlayer: React.FC = () => {
         <IconButton label="Next" onClick={() => void nextTrack()}><SkipForward className="fill-current" /></IconButton>
       </div>
 
-      {/* ---------- Expanded (≥ md) ---------- */}
       <div className="hidden md:grid h-full grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)] items-center gap-4 px-4 lg:px-6">
-        {/* Track */}
         <div className="flex items-center gap-3 min-w-0">
           <button onClick={() => openFullPlayer()} className="group relative size-14 shrink-0 rounded-sm overflow-hidden shadow-md3-1" aria-label="Open full player">
             <Artwork src={track.cover_url} alt="" className="size-full rounded-none" />
@@ -155,13 +150,11 @@ export const PersistentPlayer: React.FC = () => {
           </IconButton>
         </div>
 
-        {/* Controls */}
         <div className="flex flex-col items-center justify-center min-w-0 max-w-[520px] w-full mx-auto">
           <PlaybackControls />
           <Scrubber size="sm" className="mt-0.5" />
         </div>
 
-        {/* Right */}
         <div className="flex items-center justify-end gap-1 lg:gap-1.5 min-w-0">
           {showLyricsButton && (
             <IconButton label="Lyrics" size="md" selected={lyricsActive} onClick={toggleLyrics}><Mic2 /></IconButton>

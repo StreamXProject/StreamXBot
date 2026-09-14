@@ -100,7 +100,6 @@ export const NavigationRail: React.FC = () => {
         {SECONDARY.map((it) => <RailItem key={it.to} item={it} active={isActive(it)} expanded={expanded} />)}
       </nav>
 
-      {/* Playlists (expanded only) */}
       <div className="flex-1 min-h-0 overflow-y-auto mt-2">
         {expanded ? (
           <div className="px-3 pb-3">

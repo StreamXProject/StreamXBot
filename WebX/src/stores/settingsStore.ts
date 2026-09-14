@@ -12,12 +12,10 @@ export type LyricsTextPosition = 'left' | 'center' | 'right'
 export type LyricsTextSize = 'sm' | 'md' | 'lg' | 'xl'
 
 export interface SettingsState {
-  // Server / endpoints
   apiBaseUrl: string
   /** Remembered servers for quick switching */
   knownServers: string[]
 
-  // Playback
   audioQuality: AudioQualityLevel
   streamFormat: StreamFormat
   normalizeAudio: boolean
@@ -29,7 +27,6 @@ export interface SettingsState {
   /** Skip silence at track boundaries (client-side gapless attempt) */
   gapless: boolean
 
-  // Interface
   compactRows: boolean
   showLyricsButton: boolean
   startPage: StartPage
@@ -41,7 +38,6 @@ export interface SettingsState {
   /** Interface scale (CSS zoom on <body>), 0.8 – 1.3 */
   uiScale: number
 
-  // Lyrics
   lyricsProvider: LyricsProvider
   lyricsAnimationStyle: LyricsAnimationStyle
   lyricsTextPosition: LyricsTextPosition
@@ -53,13 +49,11 @@ export interface SettingsState {
   lyricsSeekOnClick: boolean
   lyricsSyncOffsetMs: number
 
-  // Equalizer
   eqEnabled: boolean
   eqPreset: string
   eqGains: number[]
   eqPreamp: number
 
-  // Integrations — Last.fm
   lastfmEnabled: boolean
   lastfmApiKey: string
   lastfmApiSecret: string
@@ -69,7 +63,6 @@ export interface SettingsState {
   lastfmScrobbleAt: number
   lastfmNowPlaying: boolean
 
-  // Integrations — Discord Rich Presence
   discordEnabled: boolean
   discordMode: DiscordMode
   discordUserToken: string
@@ -77,23 +70,18 @@ export interface SettingsState {
   discordDaemonUrl: string
   discordShowArtwork: boolean
 
-  // App / PWA
   pwaAutoUpdate: boolean
 
-  // Recaps
   /** Record listening events for recaps */
   recapsEnabled: boolean
 
-  // Touch
   /** Vibrate on long-press, drag and gestures (where supported) */
   haptics: boolean
   /** Swipe the mini player left/right to skip, up to expand */
   miniPlayerSwipe: boolean
 
-  // Onboarding
   hasSeenWelcome: boolean
 
-  // actions
   setApiBaseUrl: (url: string) => void
   addKnownServer: (url: string) => void
   removeKnownServer: (url: string) => void
@@ -107,9 +95,7 @@ function legacyBase(): string {
   try {
     const stored = localStorage.getItem('webx_api_base')
     if (stored && stored !== 'http://localhost:8000') return stored
-  } catch {
-    /* noop */
-  }
+  } catch {}
   return DEFAULT_ORIGIN
 }
 

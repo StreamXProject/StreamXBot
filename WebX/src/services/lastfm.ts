@@ -78,8 +78,6 @@ export async function scrobble(track: Track, startedAtSec: number): Promise<void
   await call('track.scrobble', { ...trackParams(track), timestamp: String(Math.floor(startedAtSec)), chosenByUser: '1', sk }, { post: true })
 }
 
-/* ---------- automatic scrobbler ---------- */
-
 let started = false
 let currentId: string | null = null
 let startedAt = 0

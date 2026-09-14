@@ -5,10 +5,8 @@
 const enc = encodeURIComponent
 
 export const API_ENDPOINTS = {
-  // Health
   HEALTH: '/health',
 
-  // Auth
   AUTH_LOGIN: '/auth/login',
   AUTH_REGISTER: '/auth/register',
   AUTH_VALIDATE: '/auth/validate',
@@ -28,7 +26,6 @@ export const API_ENDPOINTS = {
   AUTH_INTEGRATIONS: '/auth/integrations',
   WEBAPP_VERIFY: '/webapp/verify',
 
-  // Catalog
   BROWSE: '/browse',
   SEARCH: '/search',
   SEARCH_ARTISTS: '/search/artists',
@@ -49,18 +46,15 @@ export const API_ENDPOINTS = {
   TOPIC_TRACKS: (name: string) => `/topics/${enc(name)}/tracks`,
   CHANNEL_IDS: '/channelids',
 
-  // Curated
   PLAYLISTS_AVAILABLE: '/playlists/available',
   DAILY_PLAYLIST: (key: string) => `/daily-playlist/${enc(key)}`,
 
-  // User (authenticated)
   ME_FAVOURITES: '/me/favourites',
   ME_FAVOURITE: (trackId: string) => `/me/favourites/${enc(trackId)}`,
   ME_FAVOURITE_IDS: '/me/favourites/ids',
   ME_TOP_PLAYED: '/me/top-played',
   ME_HISTORY: '/me/history',
 
-  // Recaps
   ME_LISTENING_EVENTS: '/me/listening-events',
   ME_RECAPS: '/me/recaps',
   ME_RECAP: (type: string, period: string) => `/me/recaps/${enc(type)}/${enc(period)}`,
@@ -78,10 +72,8 @@ export const API_ENDPOINTS = {
   ME_ARTIST_FAVOURITE: (id: string) => `/me/artists/favourites/${enc(id)}`,
   ME_ARTIST_FAVOURITE_IDS: '/me/artists/favourites/ids',
 
-  // Share (public)
   SHARE_PLAYLIST: (id: string) => `/share/playlists/${enc(id)}`,
 
-  // Jam sessions
   JAM_CREATE: '/jam/create',
   JAM: (id: string) => `/jam/${enc(id)}`,
   JAM_JOIN: (id: string) => `/jam/${enc(id)}/join`,

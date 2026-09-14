@@ -32,7 +32,6 @@ interface PlayerStoreState {
   syncWithEngine: (state: ReturnType<typeof audioEngine.getState>) => void
 }
 
-// Wire the engine to the API layer
 audioEngine.setStreamResolver({
   url: (track) => getStreamUrl(track),
   needsTranscode: (track) => resolveStreamFormat(track) !== undefined && !track.stream_url,
@@ -102,12 +101,10 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
 
 audioEngine.subscribeState((state) => usePlayerStore.getState().syncWithEngine(state))
 
-// Apply persisted volume / rate on boot
 if (typeof window !== 'undefined') {
   audioEngine.setVolume(useSettingsStore.getState().volume)
   audioEngine.setPlaybackRate(useSettingsStore.getState().playbackRate)
 
-  // Sleep timer tick
   setInterval(() => {
     const s = usePlayerStore.getState()
     if (s.sleepAt && Date.now() >= s.sleepAt && s.isPlaying) {
@@ -125,9 +122,7 @@ if (typeof window !== 'undefined') {
     const track = usePlayerStore.getState().currentTrack
     try {
       localStorage.setItem(PLAYBACK_KEY, JSON.stringify({ trackId: track?.id ?? null, position: p.currentTime, updatedAt: now } satisfies PersistedPlayback))
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   })
 }
 

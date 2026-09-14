@@ -44,9 +44,7 @@ function persistQueue(state: Pick<QueueStoreState, 'queue' | 'currentIndex' | 'i
   try {
     const slim = state.queue.slice(0, 500)
     localStorage.setItem(QUEUE_KEY, JSON.stringify({ ...state, queue: slim }))
-  } catch {
-    /* ignore quota */
-  }
+  } catch {}
 }
 
 export const useQueueStore = create<QueueStoreState>((set, get) => {
@@ -178,9 +176,7 @@ export const useQueueStore = create<QueueStoreState>((set, get) => {
           const startAt = pos && pos.trackId === current.id ? pos.position : 0
           await usePlayerStore.getState().playTrack(current, startAt, false)
         }
-      } catch {
-        /* ignore corrupt state */
-      }
+      } catch {}
     },
   }
 })

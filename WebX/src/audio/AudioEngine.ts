@@ -120,8 +120,6 @@ export class AudioEngine {
     this.bindMediaSessionActions()
   }
 
-  /* ---------------------------------------------------------------- */
-
   private setupAudioListeners(): void {
     const a = this.audio
     a.addEventListener('play', () => {
@@ -178,8 +176,6 @@ export class AudioEngine {
     })
   }
 
-  /* ---------------------------------------------------------------- */
-
   public subscribeState(listener: StateListener): () => void {
     this.stateListeners.add(listener)
     listener(this.getState())
@@ -201,8 +197,6 @@ export class AudioEngine {
     this.errorListeners.add(listener)
     return () => this.errorListeners.delete(listener)
   }
-
-  /* ---------------------------------------------------------------- */
 
   public async loadTrack(track: Track, autoPlay = true, startAt = 0): Promise<void> {
     const seq = ++this.loadSeq
@@ -238,31 +232,23 @@ export class AudioEngine {
         // over HTTP Range requests with MEDIA_ERR_SRC_NOT_SUPPORTED when crossOrigin is set.
         try {
           this.audio.pause()
-        } catch {
-          /* ignore */
-        }
+        } catch {}
         this.audio.src = url
         this.audio.load()
         try {
           this.audio.currentTime = 0
-        } catch {
-          /* ignore */
-        }
+        } catch {}
       } else {
         try {
           this.audio.currentTime = 0
-        } catch {
-          /* ignore */
-        }
+        } catch {}
       }
       if (startAt > 0) {
         const seekOnce = () => {
           this.audio.removeEventListener('loadedmetadata', seekOnce)
           try {
             this.audio.currentTime = startAt
-          } catch {
-            /* ignore */
-          }
+          } catch {}
         }
         this.audio.addEventListener('loadedmetadata', seekOnce)
       }
@@ -349,9 +335,7 @@ export class AudioEngine {
       this.prefetch.src = this.resolver.url(track)
       this.prefetch.load()
       this.prefetchTrackId = track.id
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }
 
   private clearPrefetch() {
@@ -437,8 +421,6 @@ export class AudioEngine {
     this.emitState()
   }
 
-  /* ---------------------------------------------------------------- */
-
   public getState(): AudioPlaybackState {
     return {
       status: this.lastError
@@ -502,9 +484,6 @@ export class AudioEngine {
     this.updatePositionState(p)
   }
 
-  /* ---------------------------------------------------------------- */
-  /* Media Session                                                     */
-
   private setupMediaSession(track: Track): void {
     try {
       if ('mediaSession' in navigator && typeof MediaMetadata !== 'undefined') {
@@ -515,9 +494,7 @@ export class AudioEngine {
           artwork: track.cover_url ? [{ src: track.cover_url, sizes: '512x512', type: 'image/jpeg' }] : [],
         })
       }
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }
 
   private bindMediaSessionActions() {
@@ -526,9 +503,7 @@ export class AudioEngine {
     const bind = (action: MediaSessionAction, handler: MediaSessionActionHandler | null) => {
       try {
         ms.setActionHandler(action, handler)
-      } catch {
-        /* unsupported action */
-      }
+      } catch {}
     }
     bind('play', () => void this.play())
     bind('pause', () => this.pause())
@@ -545,9 +520,7 @@ export class AudioEngine {
   private setSessionState(state: MediaSessionPlaybackState) {
     try {
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = state
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }
 
   private updatePositionState(p: ProgressState) {
@@ -559,9 +532,7 @@ export class AudioEngine {
           position: Math.min(p.currentTime, p.duration),
         })
       }
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }
 }
 

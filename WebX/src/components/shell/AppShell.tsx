@@ -202,7 +202,6 @@ export const AppShell: React.FC = () => {
         <NavigationBar />
       </div>
 
-      {/* Overlays */}
       <QueueDrawer />
       <FullScreenPlayer />
       <TrackContextMenu />

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Music2, Disc3, User } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { getBaseUrl } from '@/api/client'
 
 interface ArtworkProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> {
   src?: string | null
@@ -11,6 +12,15 @@ interface ArtworkProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, '
   priority?: boolean
   rounded?: string
   style?: React.CSSProperties
+}
+
+function resolveMediaUrl(url?: string | null): string | undefined {
+  if (!url) return undefined
+  if (url.startsWith('/') && !url.startsWith('//')) {
+    const base = getBaseUrl()
+    return base ? `${base}${url}` : url
+  }
+  return url
 }
 
 /**
@@ -27,13 +37,14 @@ export const Artwork: React.FC<ArtworkProps> = React.memo(({ src, alt, className
     return (
       <div className={cn('relative overflow-hidden bg-surface-highest grid grid-cols-2 grid-rows-2', shape, className)} style={style}>
         {collage.slice(0, 4).map((u, i) => (
-          <img key={i} src={u} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+          <img key={i} src={resolveMediaUrl(u)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
         ))}
       </div>
     )
   }
 
-  const show = src && !error
+  const resolvedSrc = resolveMediaUrl(src)
+  const show = resolvedSrc && !error
   return (
     <div className={cn('relative overflow-hidden bg-surface-highest text-on-surface-variant/50', shape, className)} style={style}>
       {!show || !loaded ? (
@@ -43,7 +54,7 @@ export const Artwork: React.FC<ArtworkProps> = React.memo(({ src, alt, className
       ) : null}
       {show && (
         <img
-          src={src}
+          src={resolvedSrc}
           alt={alt}
           loading={priority ? 'eager' : 'lazy'}
           decoding="async"

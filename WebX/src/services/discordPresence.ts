@@ -99,9 +99,7 @@ function disconnect() {
         }
       }
       ws.close()
-    } catch {
-      /* ignore */
-    }
+    } catch {}
     ws = null
   }
   updateState('off', null, null)
@@ -166,7 +164,6 @@ export async function resolveDiscordAsset(
     return clean
   }
 
-  // Already cached
   const cached = assetCache.get(clean)
   if (cached) return cached
 
@@ -392,9 +389,7 @@ function send(force = false) {
       const payload = buildDaemonPayload(t, isPlaying, pr, s.discordShowArtwork)
       ws.send(JSON.stringify(payload))
     }
-  } catch {
-    /* ignore */
-  }
+  } catch {}
 }
 
 function connect() {
@@ -445,7 +440,6 @@ function connectGateway(token: string) {
 
       switch (data.op) {
         case 10: {
-          // Opcode 10: Hello
           const interval = data.d?.heartbeat_interval || 41250
           if (heartbeatTimer !== null) window.clearInterval(heartbeatTimer)
           heartbeatTimer = window.setInterval(() => {
@@ -489,7 +483,6 @@ function connectGateway(token: string) {
         }
 
         case 0: {
-          // Opcode 0: Dispatch
           if (data.t === 'READY') {
             isGatewayReady = true
             const username = data.d?.user?.username ? `@${data.d.user.username}` : 'Discord'
@@ -501,7 +494,6 @@ function connectGateway(token: string) {
         }
 
         case 1: {
-          // Heartbeat requested immediately
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ op: 1, d: lastSeq }))
           }
@@ -509,21 +501,17 @@ function connectGateway(token: string) {
         }
 
         case 11: {
-          // Heartbeat ACK received
           break
         }
 
         case 7:
         case 9: {
-          // Reconnect or invalid session
           disconnect()
           scheduleReconnect()
           break
         }
       }
-    } catch {
-      /* ignore JSON parse errors */
-    }
+    } catch {}
   }
 
   ws.onclose = (event) => {

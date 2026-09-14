@@ -61,10 +61,6 @@ const DetailsPane: React.FC<{ track: Track }> = ({ track }) => {
   )
 }
 
-/*
-Full-screen "Now Playing".
-*/
-
 export const FullScreenPlayer: React.FC = () => {
   const open = useUiStore((s) => s.fullPlayerOpen)
   const close = useUiStore((s) => s.closeFullPlayer)
@@ -216,7 +212,6 @@ export const FullScreenPlayer: React.FC = () => {
       // @ts-expect-error React 19 supports inert
       inert={open ? undefined : ''}
     >
-      {/* Top bar / drag handle */}
       <header
         className="relative z-10 flex items-center justify-between gap-1.5 sm:gap-2 px-2.5 sm:px-5 h-[calc(3.5rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] shrink-0 touch-none"
         onPointerDown={onPointerDown}
@@ -253,7 +248,6 @@ export const FullScreenPlayer: React.FC = () => {
         </div>
       </header>
 
-      {/* Compact / tablet: pane switcher lives right under the header */}
       {!isDesktop && (
         <div className="relative z-10 flex justify-center px-4 pb-2 shrink-0">
           <SegmentedButton
@@ -270,7 +264,6 @@ export const FullScreenPlayer: React.FC = () => {
         </div>
       )}
 
-      {/* Body */}
       <main
         className={cn(
           'relative z-10 flex-1 min-h-0 w-full max-w-[1440px] mx-auto px-5 sm:px-8',
@@ -278,7 +271,6 @@ export const FullScreenPlayer: React.FC = () => {
         )}
         style={{ paddingBottom: isDesktop ? 'max(env(safe-area-inset-bottom, 0px), 2rem)' : 'max(env(safe-area-inset-bottom, 0px), 20px)' }}
       >
-        {/* Left: artwork + controls */}
         <section className={cn('flex flex-col justify-center min-h-0 w-full', isDesktop ? 'max-w-[540px] mx-auto' : 'flex-1', !showPlayer && 'hidden')}>
           <div className={cn('mx-auto w-full min-h-0', isDesktop ? 'max-w-[460px]' : 'flex-1 flex items-center justify-center py-2 sm:py-4')}>
             <div
@@ -298,7 +290,6 @@ export const FullScreenPlayer: React.FC = () => {
           <Scrubber size="lg" className="mt-4 sm:mt-5 shrink-0" />
           <PlaybackControls size="lg" className="mt-2 sm:mt-3 shrink-0" />
 
-          {/* Secondary row (tablet + desktop): volume + session chips */}
           <div className="mt-4 sm:mt-5 shrink-0 hidden sm:flex items-center justify-between gap-4">
             <VolumeControl sliderClassName="w-36 lg:w-44" />
             <div className="flex items-center gap-2">
@@ -315,7 +306,6 @@ export const FullScreenPlayer: React.FC = () => {
             </div>
           </div>
 
-          {/* Phone layout: volume pill + quick actions */}
           <div className="sm:hidden shrink-0 mt-5 space-y-3">
             {canSetVolume && (
               <div className="flex items-center gap-2 h-14 px-2 rounded-full glass border border-outline-variant/40">
@@ -361,7 +351,6 @@ export const FullScreenPlayer: React.FC = () => {
           </div>
         </section>
 
-        {/* Right: panes */}
         <section className={cn('min-h-0 flex flex-col', isDesktop ? 'h-[min(78vh,860px)] self-center' : 'flex-1', showPlayer && !isDesktop && 'hidden')}>
           <div className="fullplayer-panel flex-1 min-h-0 flex flex-col rounded-2xl glass border border-outline-variant/40 overflow-hidden">
             {isDesktop ? (

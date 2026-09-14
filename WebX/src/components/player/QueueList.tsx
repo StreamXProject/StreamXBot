@@ -58,18 +58,15 @@ export const QueueList: React.FC<{ className?: string; showHeader?: boolean }> =
     otherItems.sort((a, b) => a.idx - b.idx)
     if (otherItems.length === 0) return fromIdx
 
-    // Above all other items
     if (clientY < otherItems[0].mid) {
       return fromIdx < otherItems[0].idx ? fromIdx : otherItems[0].idx
     }
-    // Below all other items
     if (clientY > otherItems[otherItems.length - 1].mid) {
       return fromIdx > otherItems[otherItems.length - 1].idx
         ? fromIdx
         : otherItems[otherItems.length - 1].idx
     }
 
-    // Between items
     for (let i = 0; i < otherItems.length - 1; i++) {
       const curr = otherItems[i]
       const next = otherItems[i + 1]
@@ -293,7 +290,6 @@ export const QueueList: React.FC<{ className?: string; showHeader?: boolean }> =
                   onPointerDown={(e) => onRowPointerDown(e, idx)}
                   onContextMenu={(e) => e.preventDefault()}
                 >
-                  {/* Drop indicator line */}
                   {drag && drag.from !== idx && over === idx && (
                     <div
                       className={cn(

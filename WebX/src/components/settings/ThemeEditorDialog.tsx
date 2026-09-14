@@ -175,7 +175,6 @@ export const ThemeEditorDialog: React.FC<{
           </div>
         </div>
 
-        {/* Live preview */}
         <div className="md:sticky md:top-0 self-start">
           <p className="type-label-lg text-on-surface mb-2">Preview · {mode}</p>
           {preview && (

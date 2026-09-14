@@ -7,9 +7,7 @@ export function haptic(pattern: number | number[] = 12): void {
   if (!useSettingsStore.getState().haptics) return
   try {
     navigator.vibrate(pattern)
-  } catch {
-    /* ignore */
-  }
+  } catch {}
 }
 
 export interface LongPressPoint { x: number; y: number }

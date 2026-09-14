@@ -26,7 +26,6 @@ export const ThemeCard: React.FC<{
         active ? 'ring-primary' : 'ring-transparent hover:ring-outline-variant focus-visible:ring-primary/60'
       )}
     >
-      {/* Mini app preview rendered in the theme's own colors */}
       <div className="relative aspect-[4/3] p-3 flex flex-col gap-2" style={{ background: c.surface, fontFamily: theme.typography.body }}>
         <div className="flex items-center gap-1.5">
           <span className="size-2.5 rounded-full" style={{ background: c.primary }} />

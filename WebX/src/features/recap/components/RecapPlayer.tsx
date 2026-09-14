@@ -56,7 +56,6 @@ export const RecapPlayer: React.FC<{ snapshot: RecapSnapshot & { demo?: boolean;
   }, [index, isLast, goTo])
   const prev = useCallback(() => goTo(index - 1), [index, goTo])
 
-  /* ---------- timeline ---------- */
   useEffect(() => {
     if (!started || paused) return
     sceneStart.current = performance.now() - elapsedBeforePause.current
@@ -91,7 +90,6 @@ export const RecapPlayer: React.FC<{ snapshot: RecapSnapshot & { demo?: boolean;
     }
   }, [index, scenes])
 
-  /* ---------- start (also kicks off the soundtrack after a user gesture) ---------- */
   const start = async () => {
     setStarted(true)
     sceneStart.current = performance.now()
@@ -105,7 +103,6 @@ export const RecapPlayer: React.FC<{ snapshot: RecapSnapshot & { demo?: boolean;
     }
   }
 
-  /* ---------- keyboard ---------- */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
@@ -126,7 +123,6 @@ export const RecapPlayer: React.FC<{ snapshot: RecapSnapshot & { demo?: boolean;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [started, next, prev, close])
 
-  /* ---------- touch: swipe up/down, hold to pause ---------- */
   const touch = useRef<{ x: number; y: number; t: number; id: number } | null>(null)
   const holdTimer = useRef<number | null>(null)
   const held = useRef(false)
@@ -164,14 +160,12 @@ export const RecapPlayer: React.FC<{ snapshot: RecapSnapshot & { demo?: boolean;
       else prev()
       return
     }
-    // tap zones
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const xRatio = (e.clientX - rect.left) / rect.width
     if (xRatio < 0.3) prev()
     else next()
   }
 
-  /* ---------- share ---------- */
   const doShare = async () => {
     if (isDemo) {
       toast('Sample recap — share links are created for real recaps only')
@@ -208,7 +202,6 @@ export const RecapPlayer: React.FC<{ snapshot: RecapSnapshot & { demo?: boolean;
     <div className="recap fixed inset-0 z-50 bg-surface text-on-surface select-none overflow-hidden" role="dialog" aria-label={`${snapshot.label} recap`}>
       <AmbientBackdrop src={scene.artwork ?? null} enabled />
 
-      {/* story canvas: full viewport on phones, centred 9:16 card on wide screens */}
       <div className="relative z-10 h-full w-full flex items-center justify-center md:p-6">
         <div
           className="recap-canvas relative h-full w-full md:h-[min(100%,920px)] md:max-w-[520px] md:rounded-3xl md:overflow-hidden md:shadow-md3-3 md:border md:border-outline-variant/30 flex flex-col"
@@ -217,7 +210,6 @@ export const RecapPlayer: React.FC<{ snapshot: RecapSnapshot & { demo?: boolean;
           onPointerCancel={() => { touch.current = null; if (holdTimer.current) window.clearTimeout(holdTimer.current); if (held.current) setPaused(false) }}
           style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
-          {/* segmented progress */}
           <div className="flex gap-1 px-3 pt-3 shrink-0" aria-hidden>
             {scenes.map((sc, i) => (
               <div key={sc.id} className="h-[3px] flex-1 rounded-full bg-on-surface/20 overflow-hidden">
@@ -226,7 +218,6 @@ export const RecapPlayer: React.FC<{ snapshot: RecapSnapshot & { demo?: boolean;
             ))}
           </div>
 
-          {/* top bar */}
           <div className="flex items-center justify-between px-2 pt-1 shrink-0">
             <div className="px-2 flex items-center gap-2 min-w-0">
               <p className="type-label-md text-on-surface-variant truncate">{snapshot.label}</p>
@@ -244,7 +235,6 @@ export const RecapPlayer: React.FC<{ snapshot: RecapSnapshot & { demo?: boolean;
             </div>
           </div>
 
-          {/* scene */}
           <div className="relative flex-1 min-h-0 px-6 sm:px-8 pb-6 flex flex-col">
             {!started ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center gap-6 recap-enter-fade">
@@ -259,7 +249,6 @@ export const RecapPlayer: React.FC<{ snapshot: RecapSnapshot & { demo?: boolean;
               <Scene key={scene.id} scene={scene} progress={progress} />
             )}
 
-            {/* outro actions */}
             {started && scene.type === 'outro' && (
               <div className="shrink-0 pt-4 flex flex-wrap items-center justify-center gap-2 recap-enter-slideUp" style={{ animationDelay: '600ms' }}>
                 {snapshot.stats.totalPlays > 0 && (
@@ -278,7 +267,6 @@ export const RecapPlayer: React.FC<{ snapshot: RecapSnapshot & { demo?: boolean;
             )}
           </div>
 
-          {/* desktop arrows */}
           {started && (
             <>
               <button onClick={prev} disabled={index === 0} aria-label="Previous scene" className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 size-10 items-center justify-center rounded-full glass text-on-surface-variant state-layer disabled:opacity-0">
@@ -290,7 +278,6 @@ export const RecapPlayer: React.FC<{ snapshot: RecapSnapshot & { demo?: boolean;
             </>
           )}
 
-          {/* soundtrack chip */}
           {started && soundtrackEnabled && story.soundtrack.tracks.length > 0 && (
             <button onClick={togglePlay} className="absolute bottom-3 left-3 inline-flex items-center gap-2 h-8 px-3 rounded-full glass border border-outline-variant/40 type-label-md text-on-surface-variant" style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}>
               {isPlaying ? <Pause className="size-3.5 fill-current" /> : <Play className="size-3.5 fill-current" />} Soundtrack

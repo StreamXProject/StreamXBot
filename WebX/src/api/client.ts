@@ -52,7 +52,11 @@ export function normalizeBaseUrl(raw: string | null | undefined): string {
   if (!raw) return ''
   let s = raw.trim()
   if (!s) return ''
-  if (!/^https?:\/\//i.test(s)) s = `http://${s}`
+  if (!/^https?:\/\//i.test(s)) {
+    const isLocal = /^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i.test(s)
+    const scheme = typeof window !== 'undefined' && window.location?.protocol === 'https:' && !isLocal ? 'https' : 'http'
+    s = `${scheme}://${s}`
+  }
   return s.replace(/\/+$/, '')
 }
 
@@ -169,6 +173,9 @@ export async function request<T = unknown>(method: HttpMethod, path: string, opt
       const e = err as Error
       if (e?.name === 'AbortError' || e?.name === 'TimeoutError') {
         throw new ApiError(0, e.name === 'TimeoutError' || controller.signal.reason?.name === 'TimeoutError' ? 'Request timed out' : 'Request cancelled', url)
+      }
+      if (typeof window !== 'undefined' && window.location?.protocol === 'https:' && url.startsWith('http://')) {
+        throw new ApiError(0, 'Mixed content blocked: HTTPS websites cannot connect to HTTP servers directly. Use an HTTPS or Cloudflare tunnel URL.', url)
       }
       throw new ApiError(0, 'Cannot reach server', url)
     } finally {

@@ -110,12 +110,16 @@ function LoginPage() {
         // data.result contains { id, first_name, username, photo_url, auth_date, hash }
         try {
           setBusy(true)
-          const res = await fetch('/auth/telegram/widget', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data.result),
-          })
-          const authRes = await res.json()
+          const authRes = await http.post<{
+            ok: boolean
+            token?: string
+            user_id?: string | number
+            first_name?: string
+            username?: string
+            profile_url?: string
+            photo_url?: string
+            detail?: string
+          }>(API_ENDPOINTS.AUTH_TELEGRAM_WIDGET, data.result, { anonymous: true })
           setBusy(false)
           if (authRes.ok && authRes.token) {
             const payload = parseTokenPayload(authRes.token)
@@ -295,9 +299,7 @@ function LoginPage() {
           }
           setSuccessUser(updated)
         }
-      } catch {
-        // Fallback user already logged in
-      }
+      } catch {}
     })()
     return () => {
       active = false
@@ -311,7 +313,6 @@ function LoginPage() {
     navigate({ to: (searchRedirect as '/') || '/', replace: true })
   }
 
-  // 5-second countdown timer with auto-redirect
   useEffect(() => {
     if (!successUser) return
     const timer = setInterval(() => {
@@ -330,7 +331,6 @@ function LoginPage() {
     return () => clearInterval(timer)
   }, [successUser, searchRedirect, navigate, login])
 
-  // Handle Telegram auth error params if any
   useEffect(() => {
     if (search.error) {
       if (search.error === 'access_denied') {
@@ -411,7 +411,6 @@ function LoginPage() {
         footer={<span>Logged in with verified Telegram identity.</span>}
       >
         <div className="space-y-5">
-          {/* User profile card */}
           <div className="flex items-center gap-4 p-4 rounded-xl bg-surface-container border border-outline-variant/60">
             <div className="relative shrink-0">
               {successUser.avatarUrl ? (
@@ -446,7 +445,6 @@ function LoginPage() {
             </div>
           </div>
 
-          {/* Countdown timer & progress bar */}
           <div className="space-y-2 text-center">
             <p className="type-body-md text-on-surface-variant">
               Redirecting in <span className="font-semibold text-primary">{countdown}s</span>...
@@ -459,7 +457,6 @@ function LoginPage() {
             </div>
           </div>
 
-          {/* Action buttons */}
           <div className="space-y-2 pt-2">
             <Button
               type="button"

@@ -48,10 +48,9 @@ export const TopAppBar: React.FC = () => {
 
   return (
     <header
-      className="bg-surface-container border-b border-outline-variant/40 h-[calc(3.5rem+env(safe-area-inset-top,0px))] md:h-[calc(var(--webx-topbar-height)+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] shrink-0 flex items-center gap-2 px-3 md:px-5 z-10"
+      className="bg-surface-container border-b border-outline-variant/40 h-[calc(3.5rem+env(safe-area-inset-top,0px))] md:h-[calc(var(--webx-topbar-height)+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px))] shrink-0 flex items-center gap-2 px-3 md:px-5 z-10"
       style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
     >
-      {/* Left: back on detail pages, brand on mobile */}
       <div className="flex items-center gap-1 min-w-0 md:w-1/4">
         {isDetail && canGoBack ? (
           <IconButton label="Back" onClick={() => window.history.back()}>
@@ -65,7 +64,6 @@ export const TopAppBar: React.FC = () => {
         <h1 className="type-title-lg text-on-surface truncate">{title ?? ''}</h1>
       </div>
 
-      {/* Center: search bar → command palette */}
       <div className="flex-1 flex justify-center min-w-0">
         {pathname !== '/search' && (
           <button
@@ -80,7 +78,6 @@ export const TopAppBar: React.FC = () => {
         )}
       </div>
 
-      {/* Right: status + account */}
       <div className="flex items-center justify-end gap-1 md:w-1/4">
 
         {kind === 'none' ? (

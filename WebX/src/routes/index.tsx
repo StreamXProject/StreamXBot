@@ -120,7 +120,6 @@ function HomePage() {
 
   return (
     <PageContainer className="space-y-10">
-      {/* Greeting + quick actions */}
       <section className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <p className="type-label-lg text-primary">{greeting()}{user?.name ? `, ${user.name.split(' ')[0]}` : ''}</p>
@@ -136,7 +135,6 @@ function HomePage() {
         </div>
       </section>
 
-      {/* Recap teaser */}
       {featuredRecap && (
         <section>
           <button
@@ -154,7 +152,6 @@ function HomePage() {
         </section>
       )}
 
-      {/* Recently played (compact chips grid) */}
       {recent.length > 0 && (
         <section>
           <SectionHeader title="Jump back in" onMore={kind === 'user' ? () => navigate({ to: '/library', search: { tab: 'history' } }) : undefined} />
@@ -179,7 +176,6 @@ function HomePage() {
         </section>
       )}
 
-      {/* Mixes */}
       {(mixes.isLoading || (mixes.data && mixes.data.length > 0)) && (
         <Shelf title="Made for you" subtitle="Rotating mixes built from your library" itemWidth="w-[62vw] max-w-[260px] sm:w-48">
           {mixes.isLoading
@@ -188,7 +184,6 @@ function HomePage() {
         </Shelf>
       )}
 
-      {/* Spotlight + latest tracks */}
       <section className="grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-8">
         <div>
           <SectionHeader title="Newest addition" />
@@ -235,7 +230,6 @@ function HomePage() {
         </div>
       </section>
 
-      {/* Albums */}
       <section>
         <SectionHeader title="Albums" onMore={() => navigate({ to: '/explore/albums' })} />
         {albums.isLoading ? (
@@ -249,7 +243,6 @@ function HomePage() {
         )}
       </section>
 
-      {/* Artists */}
       <section>
         <SectionHeader title="Artists" onMore={() => navigate({ to: '/explore/artists' })} />
         {artists.isLoading ? (
