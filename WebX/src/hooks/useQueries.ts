@@ -152,3 +152,9 @@ export function useInfiniteTopicTracks(name: string) {
     enabled: Boolean(name),
   })
 }
+
+/** Owner / sudo according to the server (drives the admin-only settings pages). */
+export function useIsAdmin(): boolean {
+  const me = useMe()
+  return Boolean(me.data?.user?.is_admin || me.data?.user?.role === 'owner' || me.data?.user?.role === 'sudo')
+}

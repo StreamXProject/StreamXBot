@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import { Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { NavigationRail } from './NavigationRail'
 import { TopAppBar } from './TopAppBar'
+import { AccessBlockedScreen } from './AccessBlockedScreen'
 import { NavigationBar } from './NavigationBar'
 import { PersistentPlayer } from '../player/PersistentPlayer'
 import { FullScreenPlayer } from '../player/FullScreenPlayer'
@@ -65,6 +66,7 @@ export const AppShell: React.FC = () => {
 
   const token = useAuthStore((s) => s.token)
   const sessionExpired = useAuthStore((s) => s.sessionExpired)
+  const accessBlock = useAuthStore((s) => s.accessBlock)
   const clearExpired = useAuthStore((s) => s.clearExpired)
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
@@ -159,6 +161,15 @@ export const AppShell: React.FC = () => {
     }
     el.style.visibility = ''
   }, [fullPlayerOpen])
+
+  if (accessBlock && token && !isPublic) {
+    return (
+      <div className="fixed inset-0 w-full bg-surface text-on-surface">
+        <AccessBlockedScreen block={accessBlock} />
+        <ToastHost />
+      </div>
+    )
+  }
 
   if (isImmersive) {
     return (

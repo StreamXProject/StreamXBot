@@ -30,7 +30,7 @@ export async function loginUser(req: { username: string; password: string }): Pr
   return { user: toProfile(data), token: data.token }
 }
 
-export async function registerUser(req: { userid: number; username: string; password: string }) {
+export async function registerUser(req: { userid: number; username: string; password: string; invite_code?: string }) {
   return http.post<{ ok: boolean; message: string; user_id: number }>(API_ENDPOINTS.AUTH_REGISTER, req, { anonymous: true })
 }
 
@@ -110,6 +110,10 @@ export interface MeResponse {
     photo_url?: string | null
     integrations?: UserIntegrations
     created_at?: number
+    role?: 'owner' | 'sudo'
+    is_admin?: boolean
+    status?: 'active' | 'locked' | 'restricted'
+    lock_reason?: string | null
   } | null
 }
 

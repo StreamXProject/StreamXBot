@@ -24,6 +24,22 @@ export const API_ENDPOINTS = {
   AUTH_TELEGRAM_WIDGET: '/auth/telegram/widget',
   AUTH_TELEGRAM_VALIDATE_TOKEN: '/auth/telegram/validate-token',
   AUTH_INTEGRATIONS: '/auth/integrations',
+  AUTH_ACCESS_STATUS: '/auth/access/status',
+  AUTH_VERIFY_MEMBERSHIP: '/auth/access/verify-membership',
+
+  // Admin — access control
+  ADMIN_ACCESS_POLICY: '/admin/access/policy',
+  ADMIN_ACCESS_REQUIRED_CHATS: '/admin/access/required-chats',
+  ADMIN_ACCESS_REQUIRED_CHAT: (chatId: number) => `/admin/access/required-chats/${chatId}`,
+  ADMIN_ACCESS_INVITES: '/admin/access/invites',
+  ADMIN_ACCESS_INVITE: (code: string) => `/admin/access/invites/${enc(code)}`,
+  ADMIN_ACCESS_ALLOWLIST: '/admin/access/allowlist',
+  ADMIN_ACCESS_ALLOWLIST_USER: (userId: number) => `/admin/access/allowlist/${userId}`,
+  ADMIN_ACCESS_USERS: '/admin/access/users',
+  ADMIN_ACCESS_USER_LOCK: (userId: number) => `/admin/access/users/${userId}/lock`,
+  ADMIN_ACCESS_USER_UNLOCK: (userId: number) => `/admin/access/users/${userId}/unlock`,
+  ADMIN_ACCESS_USER_REVOKE: (userId: number) => `/admin/access/users/${userId}/revoke-sessions`,
+  ADMIN_ACCESS_REVERIFY: '/admin/access/reverify',
   WEBAPP_VERIFY: '/webapp/verify',
 
   BROWSE: '/browse',

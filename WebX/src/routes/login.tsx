@@ -8,6 +8,8 @@ import { checkHealth } from '@/api/health'
 import { getBaseUrl, http } from '@/api/client'
 import { API_ENDPOINTS } from '@/api/endpoints'
 import { AuthCard, ErrorBanner } from '@/components/auth/AuthCard'
+import { accessDenied, type RequiredChat } from '@/api/access'
+import { ExternalLink } from 'lucide-react'
 import { Button, TextField, SegmentedButton, IdPill } from '@/components/md3'
 import { TelegramIcon } from '@/components/common/TelegramIcon'
 import { cn } from '@/lib/cn'
@@ -59,6 +61,7 @@ function LoginPage() {
   const [show, setShow] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deniedChats, setDeniedChats] = useState<RequiredChat[] | null>(null)
   const [countdown, setCountdown] = useState(5)
   const [server, setServer] = useState<{ ok: boolean; needsSetup: boolean; latency?: number; checking: boolean }>({ ok: false, needsSetup: false, checking: true })
   const [tgConfig, setTgConfig] = useState<TelegramConfig | null>(null)
@@ -335,6 +338,10 @@ function LoginPage() {
     if (search.error) {
       if (search.error === 'access_denied') {
         setError('Telegram login was cancelled.')
+      } else if (search.error === 'account_locked') {
+        setError(`Account locked. ${search.error_description || ''}`.trim())
+      } else if (search.error === 'membership_required') {
+        setError(search.error_description || 'Join the required Telegram chat to sign in.')
       } else {
         setError(search.error_description || 'Telegram login could not be completed. Please try again.')
       }
@@ -396,6 +403,12 @@ function LoginPage() {
       }
       navigate({ to: (search.redirect as '/') || '/' })
     } catch (err) {
+      const denied = accessDenied(err)
+      if (denied) {
+        setDeniedChats(denied.detail === 'membership_required' ? denied.required_chats ?? [] : null)
+        setError(denied.detail === 'account_locked' ? `Account locked. ${denied.message || ''}`.trim() : denied.message || 'Access denied')
+        return
+      }
       const msg = (err as Error).message || 'Sign-in failed'
       setError(/401|403|password|credential|Incorrect|Invalid/i.test(msg) ? (mode === 'guest' ? 'Incorrect server password' : 'Invalid username or password') : msg)
     } finally {
@@ -500,6 +513,17 @@ function LoginPage() {
       }
     >
       <ErrorBanner message={error} />
+      {deniedChats && deniedChats.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {deniedChats.map((c, i) => (
+            <div key={i} className="flex items-center justify-between gap-3 h-12 px-3 rounded-2xl bg-surface-container">
+              <span className="type-body-md text-on-surface truncate">{c.title || 'Required chat'}</span>
+              {c.invite_link && <a href={c.invite_link} target="_blank" rel="noreferrer" className="state-layer inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-primary text-on-primary type-label-md shrink-0">Join <ExternalLink className="size-3.5" /></a>}
+            </div>
+          ))}
+          <p className="type-body-sm text-on-surface-variant px-1">Join, then sign in again.</p>
+        </div>
+      )}
 
       {!server.needsSetup && (
         <div className="space-y-4 mb-5">

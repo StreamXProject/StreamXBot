@@ -165,6 +165,14 @@ export async function request<T = unknown>(method: HttpMethod, path: string, opt
         if (res.status === 401 && token && typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('webx:unauthorized', { detail: { url } }))
         }
+        // Account locked / chat membership required → the shell shows a dedicated blocked screen
+        if (res.status === 403 && token && typeof window !== 'undefined' && body && typeof body === 'object') {
+          const raw = body as { detail?: unknown }
+          const inner = (typeof raw.detail === 'object' && raw.detail !== null ? raw.detail : raw) as { detail?: unknown }
+          if (inner.detail === 'account_locked' || inner.detail === 'membership_required') {
+            window.dispatchEvent(new CustomEvent('webx:access-denied', { detail: inner }))
+          }
+        }
         throw new ApiError(res.status, errorMessage(res.status, body, res.statusText), url, body)
       }
       return (await readBody(res, opts.parse ?? 'json')) as T

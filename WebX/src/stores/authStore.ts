@@ -7,6 +7,16 @@ export interface UserProfile {
   avatarUrl?: string | null
   profile_url?: string | null
   photo_url?: string | null
+  /** Owner / sudo (from /auth/me) */
+  is_admin?: boolean
+  status?: 'active' | 'locked' | 'restricted'
+}
+
+export interface AccessBlock {
+  code: 'account_locked' | 'membership_required'
+  message: string
+  reason?: string | null
+  required_chats: Array<{ title: string | null; invite_link: string | null }>
 }
 
 export type SessionKind = 'none' | 'guest' | 'user'
@@ -16,6 +26,9 @@ interface AuthStoreState {
   token: string | null
   /** Set when the server rejected our token */
   sessionExpired: boolean
+  /** Server refused access (locked account / left required chat) */
+  accessBlock: AccessBlock | null
+  setAccessBlock: (b: AccessBlock | null) => void
   login: (user: UserProfile, token: string) => void
   loginGuest: (token: string) => void
   updateUser: (patch: Partial<UserProfile>) => void
@@ -99,6 +112,8 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
     user: initial.user,
     token: initial.token,
     sessionExpired: false,
+    accessBlock: null,
+    setAccessBlock: (b) => set({ accessBlock: b }),
 
     login: (user, token) => {
       const finalUser = profileFromPayload(parseTokenPayload(token), user) ?? user
@@ -133,6 +148,13 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
 
 // Drop the session when the server says our token is no longer valid.
 if (typeof window !== 'undefined') {
+  window.addEventListener('webx:access-denied', (e) => {
+    const d = (e as CustomEvent<{ detail?: string; message?: string; reason?: string | null; required_chats?: AccessBlock['required_chats'] }>).detail || {}
+    if (d.detail !== 'account_locked' && d.detail !== 'membership_required') return
+    useAuthStore.setState({
+      accessBlock: { code: d.detail, message: d.message || (d.detail === 'account_locked' ? 'Your account has been locked.' : 'Join the required Telegram chat to continue.'), reason: d.reason ?? null, required_chats: d.required_chats ?? [] },
+    })
+  })
   window.addEventListener('webx:unauthorized', () => {
     const s = useAuthStore.getState()
     if (s.token) {
