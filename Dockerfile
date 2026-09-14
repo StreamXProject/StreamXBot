@@ -2,12 +2,13 @@
 
 FROM node:20-alpine AS frontend-builder
 
+RUN apk add --no-cache git
+
+RUN git clone https://github.com/StreamXProject/WebX.git /app/WebX
+
 WORKDIR /app/WebX
 
-COPY WebX/package*.json ./
 RUN npm install
-COPY WebX/ .
-
 RUN npm run build
 
 FROM python:3.12-slim-bookworm
