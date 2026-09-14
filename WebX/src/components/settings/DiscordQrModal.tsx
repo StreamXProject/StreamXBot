@@ -10,6 +10,7 @@ import {
 } from '@/services/discordRemoteAuth'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { toast } from '@/stores/uiStore'
+import { saveIntegrationsToServer } from '@/services/integrationsSync'
 
 export interface DiscordQrModalProps {
   open: boolean
@@ -42,6 +43,7 @@ export const DiscordQrModal: React.FC<DiscordQrModalProps> = ({ open, onClose })
       onSuccess: (token, u) => {
         setSetting('discordUserToken', token)
         setSetting('discordEnabled', true)
+        void saveIntegrationsToServer({ discord: { token, enabled: true } })
         toast(u ? `Logged in to Discord as @${u.username}!` : 'Discord account connected!')
         setTimeout(() => {
           onClose()

@@ -6,6 +6,10 @@ export type StreamFormat = 'auto' | 'original' | 'flac'
 export type LibraryTab = 'liked' | 'playlists' | 'history' | 'albums' | 'artists'
 export type StartPage = '/' | '/search' | '/library'
 export type DiscordMode = 'gateway' | 'daemon'
+export type LyricsProvider = 'auto' | 'betterlyrics' | 'musixmatch' | 'lrclib' | 'kugou'
+export type LyricsAnimationStyle = 'apple_music_v2' | 'lyrics_v2_fluid' | 'apple_music' | 'glow' | 'fade' | 'classic'
+export type LyricsTextPosition = 'left' | 'center' | 'right'
+export type LyricsTextSize = 'sm' | 'md' | 'lg' | 'xl'
 
 export interface SettingsState {
   // Server / endpoints
@@ -38,6 +42,18 @@ export interface SettingsState {
   showQualityBadges: boolean
   /** Interface scale (CSS zoom on <body>), 0.8 – 1.3 */
   uiScale: number
+
+  // Lyrics
+  lyricsProvider: LyricsProvider
+  lyricsAnimationStyle: LyricsAnimationStyle
+  lyricsTextPosition: LyricsTextPosition
+  lyricsGlow: boolean
+  lyricsBlur: boolean
+  lyricsTextSize: LyricsTextSize
+  lyricsLineSpacing: number
+  lyricsAutoScroll: boolean
+  lyricsSeekOnClick: boolean
+  lyricsSyncOffsetMs: number
 
   // Equalizer
   eqEnabled: boolean
@@ -117,6 +133,16 @@ const DEFAULTS = {
   confirmDestructive: true,
   showQualityBadges: true,
   uiScale: 1,
+  lyricsProvider: 'auto' as LyricsProvider,
+  lyricsAnimationStyle: 'apple_music_v2' as LyricsAnimationStyle,
+  lyricsTextPosition: 'left' as LyricsTextPosition,
+  lyricsGlow: true,
+  lyricsBlur: true,
+  lyricsTextSize: 'lg' as LyricsTextSize,
+  lyricsLineSpacing: 1.5,
+  lyricsAutoScroll: true,
+  lyricsSeekOnClick: true,
+  lyricsSyncOffsetMs: 0,
   eqEnabled: false,
   eqPreset: 'flat',
   eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] as number[],

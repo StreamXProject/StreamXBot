@@ -25,6 +25,7 @@ import { useSettingsStore, type DiscordMode } from '@/stores/settingsStore'
 import { toast } from '@/stores/uiStore'
 import { beginAuth, finishAuth, disconnect as lastfmDisconnect, scrobbleStatus, onScrobbleStatus } from '@/services/lastfm'
 import { getDiscordInfo, onDiscordStatus, reconnectDiscord, type DiscordPresenceInfo } from '@/services/discordPresence'
+import { saveIntegrationsToServer } from '@/services/integrationsSync'
 import { cn } from '@/lib/cn'
 
 export const Route = createFileRoute('/settings/integrations')({
@@ -83,6 +84,15 @@ function IntegrationsSettings() {
       const session = await finishAuth(pendingToken)
       setPendingToken(null)
       set('lastfmEnabled', true)
+      void saveIntegrationsToServer({
+        lastfm: {
+          enabled: true,
+          session_key: session.key,
+          username: session.name,
+          api_key: s.lastfmApiKey,
+          api_secret: s.lastfmApiSecret,
+        },
+      })
       toast(`Connected to Last.fm as ${session.name}`)
     } catch (e) {
       toast(`Last.fm: ${(e as Error).message}`, { variant: 'error' })
@@ -92,14 +102,24 @@ function IntegrationsSettings() {
   }
 
   return (
-    <SettingsPage title="Integrations" description="Keys stay on this device">
+    <SettingsPage title="Integrations" description="Synced to your account across devices">
       {/* ---------- Last.fm ---------- */}
       <SettingsSection title="Last.fm scrobbling" description="Sent at the threshold below · 4 min max">
         <SettingRow
           icon={<Radio />}
           label="Scrobble to Last.fm"
           description={connected ? `Signed in as ${s.lastfmUsername}` : 'Connect an account to enable'}
-          control={<Switch checked={s.lastfmEnabled && connected} disabled={!connected} onChange={(v) => set('lastfmEnabled', v)} label="Scrobble to Last.fm" />}
+          control={
+            <Switch
+              checked={s.lastfmEnabled && connected}
+              disabled={!connected}
+              onChange={(v) => {
+                set('lastfmEnabled', v)
+                void saveIntegrationsToServer({ lastfm: { enabled: v } })
+              }}
+              label="Scrobble to Last.fm"
+            />
+          }
         />
         <SettingRow
           icon={<KeyRound />}
@@ -116,8 +136,33 @@ function IntegrationsSettings() {
           stacked
           control={
             <div className="grid sm:grid-cols-2 gap-3 w-full">
-              <TextField label="API key" value={s.lastfmApiKey} onChange={(e) => set('lastfmApiKey', e.target.value.trim())} autoComplete="off" spellCheck={false} className="font-mono" disabled={connected} />
-              <TextField label="Shared secret" type="password" value={s.lastfmApiSecret} onChange={(e) => set('lastfmApiSecret', e.target.value.trim())} autoComplete="off" spellCheck={false} className="font-mono" disabled={connected} />
+              <TextField
+                label="API key"
+                value={s.lastfmApiKey}
+                onChange={(e) => {
+                  const val = e.target.value.trim()
+                  set('lastfmApiKey', val)
+                  void saveIntegrationsToServer({ lastfm: { api_key: val } })
+                }}
+                autoComplete="off"
+                spellCheck={false}
+                className="font-mono"
+                disabled={connected}
+              />
+              <TextField
+                label="Shared secret"
+                type="password"
+                value={s.lastfmApiSecret}
+                onChange={(e) => {
+                  const val = e.target.value.trim()
+                  set('lastfmApiSecret', val)
+                  void saveIntegrationsToServer({ lastfm: { api_secret: val } })
+                }}
+                autoComplete="off"
+                spellCheck={false}
+                className="font-mono"
+                disabled={connected}
+              />
             </div>
           }
         />
@@ -127,7 +172,23 @@ function IntegrationsSettings() {
           description={connected ? 'Revoke on Last.fm to disconnect' : pendingToken ? 'Approve in the Last.fm tab, then confirm' : 'Authorise this browser on Last.fm'}
           control={
             connected ? (
-              <Button variant="outlined" icon={<Unlink />} onClick={() => { lastfmDisconnect(); toast('Disconnected from Last.fm') }}>Disconnect</Button>
+              <Button
+                variant="outlined"
+                icon={<Unlink />}
+                onClick={() => {
+                  lastfmDisconnect()
+                  void saveIntegrationsToServer({
+                    lastfm: {
+                      enabled: false,
+                      session_key: '',
+                      username: '',
+                    },
+                  })
+                  toast('Disconnected from Last.fm')
+                }}
+              >
+                Disconnect
+              </Button>
             ) : pendingToken ? (
               <div className="flex gap-2">
                 <Button variant="text" onClick={() => setPendingToken(null)}>Cancel</Button>
@@ -142,9 +203,36 @@ function IntegrationsSettings() {
           label="Scrobble threshold"
           description={`${Math.round(s.lastfmScrobbleAt * 100)}% of the track`}
           stacked
-          control={<Slider value={Math.round(s.lastfmScrobbleAt * 100)} min={10} max={95} step={5} onChange={(v) => set('lastfmScrobbleAt', v / 100)} aria-label="Scrobble threshold" className="w-full" />}
+          control={
+            <Slider
+              value={Math.round(s.lastfmScrobbleAt * 100)}
+              min={10}
+              max={95}
+              step={5}
+              onChange={(v) => {
+                const fraction = v / 100
+                set('lastfmScrobbleAt', fraction)
+                void saveIntegrationsToServer({ lastfm: { scrobble_at: fraction } })
+              }}
+              aria-label="Scrobble threshold"
+              className="w-full"
+            />
+          }
         />
-        <SettingRow label="Send “now playing”" description="Current track on your profile" control={<Switch checked={s.lastfmNowPlaying} onChange={(v) => set('lastfmNowPlaying', v)} label="Now playing" />} />
+        <SettingRow
+          label="Send “now playing”"
+          description="Current track on your profile"
+          control={
+            <Switch
+              checked={s.lastfmNowPlaying}
+              onChange={(v) => {
+                set('lastfmNowPlaying', v)
+                void saveIntegrationsToServer({ lastfm: { now_playing: v } })
+              }}
+              label="Now playing"
+            />
+          }
+        />
         {(scrobbles.count > 0 || scrobbles.lastError) && (
           <SettingRow
             icon={scrobbles.lastError ? <AlertCircle className="text-error" /> : <CheckCircle2 className="text-tertiary" />}
@@ -204,7 +292,10 @@ function IntegrationsSettings() {
               )}
               <Switch
                 checked={s.discordEnabled}
-                onChange={(v) => set('discordEnabled', v)}
+                onChange={(v) => {
+                  set('discordEnabled', v)
+                  void saveIntegrationsToServer({ discord: { enabled: v } })
+                }}
                 label="Discord Rich Presence"
               />
             </div>
@@ -214,7 +305,7 @@ function IntegrationsSettings() {
         <SettingRow
           icon={<KeyRound />}
           label="Discord Account"
-          description="QR code or user token · stored locally"
+          description="QR code or user token · synced to your account"
           stacked
           control={
             <div className="flex flex-col gap-3 w-full">
@@ -249,7 +340,15 @@ function IntegrationsSettings() {
                   onChange={(e) => setTokenDraft(e.target.value)}
                   onBlur={() => {
                     if (tokenDraft.trim() !== s.discordUserToken) {
-                      set('discordUserToken', tokenDraft.trim())
+                      const t = tokenDraft.trim()
+                      set('discordUserToken', t)
+                      set('discordEnabled', Boolean(t))
+                      void saveIntegrationsToServer({
+                        discord: {
+                          token: t,
+                          enabled: Boolean(t),
+                        },
+                      })
                       toast('Discord token saved')
                     }
                   }}
@@ -273,7 +372,15 @@ function IntegrationsSettings() {
                   <Button
                     variant="filled"
                     onClick={() => {
-                      set('discordUserToken', tokenDraft.trim())
+                      const t = tokenDraft.trim()
+                      set('discordUserToken', t)
+                      set('discordEnabled', Boolean(t))
+                      void saveIntegrationsToServer({
+                        discord: {
+                          token: t,
+                          enabled: Boolean(t),
+                        },
+                      })
                       toast('Discord token saved')
                     }}
                     className="h-14"
@@ -281,10 +388,31 @@ function IntegrationsSettings() {
                     Save
                   </Button>
                 )}
+                {Boolean(s.discordUserToken) && tokenDraft.trim() === s.discordUserToken && (
+                  <Button
+                    variant="outlined"
+                    icon={<Unlink className="size-4" />}
+                    onClick={() => {
+                      set('discordUserToken', '')
+                      set('discordEnabled', false)
+                      setTokenDraft('')
+                      void saveIntegrationsToServer({
+                        discord: {
+                          token: '',
+                          enabled: false,
+                        },
+                      })
+                      toast('Discord disconnected')
+                    }}
+                    className="h-14"
+                  >
+                    Disconnect
+                  </Button>
+                )}
               </div>
               <div className="flex items-center justify-between text-[12px] text-on-surface-variant px-1">
                 <span className="inline-flex items-center gap-1 text-tertiary">
-                  <ShieldCheck className="size-3.5" /> Token stays in browser localStorage
+                  <ShieldCheck className="size-3.5" /> Synced to your account profile in MongoDB
                 </span>
                 <button
                   type="button"
@@ -321,7 +449,10 @@ function IntegrationsSettings() {
           control={
             <Switch
               checked={s.discordShowArtwork}
-              onChange={(v) => set('discordShowArtwork', v)}
+              onChange={(v) => {
+                set('discordShowArtwork', v)
+                void saveIntegrationsToServer({ discord: { show_artwork: v } })
+              }}
               label="Include artwork"
             />
           }

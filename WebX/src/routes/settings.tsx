@@ -1,6 +1,6 @@
 import React from 'react'
 import { createFileRoute, Link, Outlet, useRouterState } from '@tanstack/react-router'
-import { Palette, SlidersHorizontal, Server, User, Database, Keyboard, Info, ChevronRight, AudioLines, Plug, Smartphone } from 'lucide-react'
+import { Palette, SlidersHorizontal, Mic2, Server, User, Database, Keyboard, Info, ChevronRight, AudioLines, Plug, Smartphone } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useIsDesktop } from '@/hooks/useMediaQuery'
 import { useUiStore } from '@/stores/uiStore'
@@ -13,6 +13,7 @@ export const Route = createFileRoute('/settings')({
 export const SETTINGS_SECTIONS = [
   { to: '/settings/appearance', label: 'Appearance', description: 'Themes, colors, motion', icon: Palette },
   { to: '/settings/playback', label: 'Playback', description: 'Format, prefetch, speed', icon: SlidersHorizontal },
+  { to: '/settings/lyrics', label: 'Lyrics', description: 'Musixmatch, LRCLIB, sync style', icon: Mic2 },
   { to: '/settings/equalizer', label: 'Equalizer', description: 'Bands and presets', icon: AudioLines },
   { to: '/settings/integrations', label: 'Integrations', description: 'Last.fm, Discord', icon: Plug },
   { to: '/settings/app', label: 'App & offline', description: 'Install, updates, storage', icon: Smartphone },

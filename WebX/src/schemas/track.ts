@@ -110,9 +110,18 @@ export function parseTracks(items: unknown): Track[] {
   return out
 }
 
+export const LyricWordSpanSchema = z.object({
+  time: z.number(),
+  duration: z.number().optional(),
+  text: z.string(),
+})
+export type LyricWordSpan = z.infer<typeof LyricWordSpanSchema>
+
 export const LyricLineSchema = z.object({
   time: z.number(),
   text: z.string(),
+  duration: z.number().optional(),
+  spans: z.array(LyricWordSpanSchema).optional(),
 })
 export type LyricLine = z.infer<typeof LyricLineSchema>
 
@@ -121,4 +130,5 @@ export interface Lyrics {
   plain: string
   synced: boolean
   source?: string
+  kind?: string
 }

@@ -14,6 +14,8 @@ import { ShortcutsDialog } from '../overlays/ShortcutsDialog'
 import { SleepTimerDialog } from '../overlays/SleepTimerDialog'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useServerStatus } from '@/hooks/useServerStatus'
+import { useMe } from '@/hooks/useQueries'
+import { hydrateIntegrationsFromUser } from '@/services/integrationsSync'
 import { useAuthStore } from '@/stores/authStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useUiStore, toast } from '@/stores/uiStore'
@@ -82,6 +84,13 @@ export const AppShell: React.FC = () => {
       clearExpired()
     }
   }, [sessionExpired, clearExpired])
+
+  const { data: me } = useMe()
+  useEffect(() => {
+    if (me?.user?.integrations) {
+      hydrateIntegrationsFromUser(me.user.integrations)
+    }
+  }, [me?.user?.integrations])
 
   // One-time boot: sync library, restore queue, record history, surface playback errors
   useEffect(() => {

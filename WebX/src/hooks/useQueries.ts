@@ -8,6 +8,7 @@ import { fetchHistory, fetchTopPlayed } from '@/api/favourites'
 import { fetchAllPlaylistTracks, fetchSharedPlaylist } from '@/api/playlists'
 import { fetchMe } from '@/api/auth'
 import { useAuthStore, sessionKind } from '@/stores/authStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 
 export const QUERY_KEYS = {
   BROWSE: ['browse'] as const,
@@ -97,10 +98,12 @@ export function useSearch(query: string) {
   })
 }
 
-export function useTrackLyrics(trackId?: string | null) {
+export function useTrackLyrics(trackId?: string | null, customProvider?: string) {
+  const defaultProvider = useSettingsStore((s) => s.lyricsProvider)
+  const provider = customProvider || defaultProvider
   return useQuery({
-    queryKey: QUERY_KEYS.LYRICS(trackId || ''),
-    queryFn: ({ signal }) => fetchTrackLyrics(trackId!, signal),
+    queryKey: [...QUERY_KEYS.LYRICS(trackId || ''), provider],
+    queryFn: ({ signal }) => fetchTrackLyrics(trackId!, signal, provider),
     enabled: Boolean(trackId),
     staleTime: 60 * 60_000,
     gcTime: 60 * 60_000,

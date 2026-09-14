@@ -33,6 +33,7 @@ import { Route as SettingsAppearanceRouteImport } from './routes/settings/appear
 import { Route as SettingsEqualizerRouteImport } from './routes/settings/equalizer'
 import { Route as SettingsIntegrationsRouteImport } from './routes/settings/integrations'
 import { Route as SettingsLibraryRouteImport } from './routes/settings/library'
+import { Route as SettingsLyricsRouteImport } from './routes/settings/lyrics'
 import { Route as SettingsPlaybackRouteImport } from './routes/settings/playback'
 import { Route as SettingsServerRouteImport } from './routes/settings/server'
 import { Route as SettingsShortcutsRouteImport } from './routes/settings/shortcuts'
@@ -160,6 +161,11 @@ const SettingsLibraryRoute = SettingsLibraryRouteImport.update({
   path: '/library',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsLyricsRoute = SettingsLyricsRouteImport.update({
+  id: '/lyrics',
+  path: '/lyrics',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsPlaybackRoute = SettingsPlaybackRouteImport.update({
   id: '/playback',
   path: '/playback',
@@ -213,6 +219,7 @@ export interface FileRoutesByFullPath {
   '/settings/equalizer': typeof SettingsEqualizerRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/library': typeof SettingsLibraryRoute
+  '/settings/lyrics': typeof SettingsLyricsRoute
   '/settings/playback': typeof SettingsPlaybackRoute
   '/settings/server': typeof SettingsServerRoute
   '/settings/shortcuts': typeof SettingsShortcutsRoute
@@ -244,6 +251,7 @@ export interface FileRoutesByTo {
   '/settings/equalizer': typeof SettingsEqualizerRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/library': typeof SettingsLibraryRoute
+  '/settings/lyrics': typeof SettingsLyricsRoute
   '/settings/playback': typeof SettingsPlaybackRoute
   '/settings/server': typeof SettingsServerRoute
   '/settings/shortcuts': typeof SettingsShortcutsRoute
@@ -277,6 +285,7 @@ export interface FileRoutesById {
   '/settings/equalizer': typeof SettingsEqualizerRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/library': typeof SettingsLibraryRoute
+  '/settings/lyrics': typeof SettingsLyricsRoute
   '/settings/playback': typeof SettingsPlaybackRoute
   '/settings/server': typeof SettingsServerRoute
   '/settings/shortcuts': typeof SettingsShortcutsRoute
@@ -311,6 +320,7 @@ export interface FileRouteTypes {
     | '/settings/equalizer'
     | '/settings/integrations'
     | '/settings/library'
+    | '/settings/lyrics'
     | '/settings/playback'
     | '/settings/server'
     | '/settings/shortcuts'
@@ -342,6 +352,7 @@ export interface FileRouteTypes {
     | '/settings/equalizer'
     | '/settings/integrations'
     | '/settings/library'
+    | '/settings/lyrics'
     | '/settings/playback'
     | '/settings/server'
     | '/settings/shortcuts'
@@ -374,6 +385,7 @@ export interface FileRouteTypes {
     | '/settings/equalizer'
     | '/settings/integrations'
     | '/settings/library'
+    | '/settings/lyrics'
     | '/settings/playback'
     | '/settings/server'
     | '/settings/shortcuts'
@@ -577,6 +589,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsLibraryRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/lyrics': {
+      id: '/settings/lyrics'
+      path: '/lyrics'
+      fullPath: '/settings/lyrics'
+      preLoaderRoute: typeof SettingsLyricsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/playback': {
       id: '/settings/playback'
       path: '/playback'
@@ -630,6 +649,7 @@ interface SettingsRouteChildren {
   SettingsEqualizerRoute: typeof SettingsEqualizerRoute
   SettingsIntegrationsRoute: typeof SettingsIntegrationsRoute
   SettingsLibraryRoute: typeof SettingsLibraryRoute
+  SettingsLyricsRoute: typeof SettingsLyricsRoute
   SettingsPlaybackRoute: typeof SettingsPlaybackRoute
   SettingsServerRoute: typeof SettingsServerRoute
   SettingsShortcutsRoute: typeof SettingsShortcutsRoute
@@ -644,6 +664,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsEqualizerRoute: SettingsEqualizerRoute,
   SettingsIntegrationsRoute: SettingsIntegrationsRoute,
   SettingsLibraryRoute: SettingsLibraryRoute,
+  SettingsLyricsRoute: SettingsLyricsRoute,
   SettingsPlaybackRoute: SettingsPlaybackRoute,
   SettingsServerRoute: SettingsServerRoute,
   SettingsShortcutsRoute: SettingsShortcutsRoute,

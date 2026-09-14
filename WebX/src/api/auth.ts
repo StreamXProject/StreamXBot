@@ -72,6 +72,30 @@ export async function setCredentials(username: string, password: string): Promis
   await http.post(API_ENDPOINTS.AUTH_CREDENTIALS, { username, password })
 }
 
+export interface DiscordIntegrationData {
+  enabled?: boolean
+  token?: string
+  mode?: 'gateway' | 'daemon'
+  client_id?: string
+  daemon_url?: string
+  show_artwork?: boolean
+}
+
+export interface LastfmIntegrationData {
+  enabled?: boolean
+  api_key?: string
+  api_secret?: string
+  session_key?: string
+  username?: string
+  scrobble_at?: number
+  now_playing?: boolean
+}
+
+export interface UserIntegrations {
+  discord?: DiscordIntegrationData
+  lastfm?: LastfmIntegrationData
+}
+
 export interface MeResponse {
   ok: boolean
   guest?: boolean
@@ -84,12 +108,17 @@ export interface MeResponse {
     first_name?: string
     profile_url?: string | null
     photo_url?: string | null
+    integrations?: UserIntegrations
     created_at?: number
   } | null
 }
 
 export async function fetchMe(signal?: AbortSignal): Promise<MeResponse> {
   return http.get<MeResponse>(API_ENDPOINTS.AUTH_ME, { signal, timeoutMs: 8000 })
+}
+
+export async function updateUserIntegrations(payload: UserIntegrations): Promise<{ ok: boolean; integrations?: UserIntegrations }> {
+  return http.post<{ ok: boolean; integrations?: UserIntegrations }>(API_ENDPOINTS.AUTH_INTEGRATIONS, payload, { timeoutMs: 8000 })
 }
 
 export async function logoutServer(): Promise<void> {
