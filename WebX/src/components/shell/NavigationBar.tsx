@@ -20,10 +20,10 @@ export const NavigationBar: React.FC = () => {
         const Icon = it.icon
         return (
           <Link key={it.to} to={it.to} aria-current={active ? 'page' : undefined} className="group flex-1 flex flex-col items-center justify-center gap-1 h-16 py-1 outline-none">
-            <span className={cn('state-layer flex items-center justify-center w-16 h-8 rounded-full transition-colors duration-200 ease-emphasized', active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant')}>
+            <span className={cn('state-layer flex items-center justify-center w-16 h-8 rounded-full transition-colors duration-200 ease-emphasized', active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant')}>
               <Icon className="size-6" strokeWidth={active ? 2.4 : 1.9} />
             </span>
-            <span className={cn('type-label-md', active ? 'text-on-surface font-bold' : 'text-on-surface-variant')}>{it.label}</span>
+            <span className={cn('type-label-md transition-colors', active ? 'text-primary font-bold' : 'text-on-surface-variant')}>{it.label}</span>
           </Link>
         )
       })}

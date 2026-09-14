@@ -78,6 +78,8 @@ export interface MeResponse {
   user_id?: number
   user?: {
     _id?: number
+    id?: number
+    user_id?: number
     username?: string
     first_name?: string
     profile_url?: string | null
@@ -97,3 +99,35 @@ export async function logoutServer(): Promise<void> {
     /* best effort */
   }
 }
+
+export interface TelegramConfig {
+  ok: boolean
+  enabled: boolean
+  client_id?: string
+  bot_username?: string
+}
+
+export async function fetchTelegramConfig(baseUrl?: string): Promise<TelegramConfig> {
+  return http.get<TelegramConfig>(API_ENDPOINTS.AUTH_TELEGRAM_CONFIG, { anonymous: true, baseUrl, timeoutMs: 6000 })
+}
+
+export async function loginWithTelegramWidget(data: {
+  id: number
+  first_name?: string
+  last_name?: string
+  username?: string
+  photo_url?: string
+  auth_date: number
+  hash: string
+}): Promise<{ user: UserProfile; token: string }> {
+  const res = await http.post<LoginResponse>(API_ENDPOINTS.AUTH_TELEGRAM_WIDGET, data, { anonymous: true })
+  if (!res?.ok || !res.token) throw new Error('Telegram login failed')
+  return { user: toProfile(res), token: res.token }
+}
+
+export async function loginWithTelegramToken(id_token: string): Promise<{ user: UserProfile; token: string }> {
+  const res = await http.post<LoginResponse>(API_ENDPOINTS.AUTH_TELEGRAM_VALIDATE_TOKEN, { id_token }, { anonymous: true })
+  if (!res?.ok || !res.token) throw new Error('Telegram login failed')
+  return { user: toProfile(res), token: res.token }
+}
+

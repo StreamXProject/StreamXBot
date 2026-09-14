@@ -12,7 +12,7 @@ export const Shelf: React.FC<{
   children: React.ReactNode
   className?: string
   itemWidth?: string
-}> = ({ title, subtitle, onMore, action, children, className, itemWidth = 'w-40 sm:w-44' }) => {
+}> = ({ title, subtitle, onMore, action, children, className, itemWidth = 'w-[46vw] max-w-[220px] sm:w-44' }) => {
   const ref = useRef<HTMLDivElement>(null)
   const [canL, setCanL] = useState(false)
   const [canR, setCanR] = useState(false)

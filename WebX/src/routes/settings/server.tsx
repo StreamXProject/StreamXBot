@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Server, Plug, Check, X, Trash2, FlaskConical, Copy, Activity } from 'lucide-react'
+import { Server, Plug, Check, X, Trash2, Copy, Activity } from 'lucide-react'
 import { SettingsPage, SettingsSection, SettingRow } from '@/components/settings/SettingsPrimitives'
-import { TextField, Button, Switch, Chip } from '@/components/md3'
+import { TextField, Button, Chip } from '@/components/md3'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useUiStore, toast } from '@/stores/uiStore'
 import { checkHealth, type HealthResult } from '@/api/health'
@@ -28,8 +28,6 @@ function ServerSettings() {
   const knownServers = useSettingsStore((s) => s.knownServers)
   const setApiBaseUrl = useSettingsStore((s) => s.setApiBaseUrl)
   const removeKnownServer = useSettingsStore((s) => s.removeKnownServer)
-  const demoMode = useSettingsStore((s) => s.demoMode)
-  const setSetting = useSettingsStore((s) => s.set)
   const serverStatus = useUiStore((s) => s.serverStatus)
   const setServerStatus = useUiStore((s) => s.setServerStatus)
   const qc = useQueryClient()
@@ -126,14 +124,6 @@ function ServerSettings() {
         </SettingsSection>
       )}
 
-      <SettingsSection title="Offline">
-        <SettingRow
-          icon={<FlaskConical />}
-          label="Demo mode"
-          description="Sample catalog, no server"
-          control={<Switch checked={demoMode} onChange={(v) => { setSetting('demoMode', v); qc.clear() }} label="Demo mode" />}
-        />
-      </SettingsSection>
 
       <section>
         <div className="mb-2 px-1">

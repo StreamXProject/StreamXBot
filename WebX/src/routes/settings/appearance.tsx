@@ -118,7 +118,7 @@ function AppearanceSettings() {
         </div>
         <div role="radiogroup" className="theme-rail flex gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none -mx-1 px-1 pb-2">
           {builtIns.map((t) => (
-            <ThemeCard key={t.id} theme={t} mode={resolvedMode} active={t.id === activeId} onSelect={() => setTheme(t.id)} onMenu={(a) => setMenu({ anchor: a, theme: t })} />
+            <ThemeCard key={t.id} theme={t} mode={resolvedMode} active={t.id === activeId} onSelect={() => setTheme(t.id)} onMenu={(a) => setMenu((curr) => (curr?.theme.id === t.id ? null : { anchor: a, theme: t }))} />
           ))}
         </div>
         {custom.length > 0 && (
@@ -126,7 +126,7 @@ function AppearanceSettings() {
             <h3 className="type-title-sm text-on-surface-variant mt-6 mb-3 px-1">Your themes</h3>
             <div role="radiogroup" className="theme-rail flex gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none -mx-1 px-1 pb-2">
               {custom.map((t) => (
-                <ThemeCard key={t.id} theme={t} mode={resolvedMode} active={t.id === activeId} onSelect={() => setTheme(t.id)} onMenu={(a) => setMenu({ anchor: a, theme: t })} />
+                <ThemeCard key={t.id} theme={t} mode={resolvedMode} active={t.id === activeId} onSelect={() => setTheme(t.id)} onMenu={(a) => setMenu((curr) => (curr?.theme.id === t.id ? null : { anchor: a, theme: t }))} />
               ))}
             </div>
           </>

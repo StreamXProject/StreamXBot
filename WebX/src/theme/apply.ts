@@ -61,7 +61,19 @@ export function applyTheme(theme: ResolvedTheme, opts: ApplyOptions): void {
   root.style.colorScheme = opts.mode
   if (opts.reducedMotion !== undefined) root.dataset.reducedMotion = String(opts.reducedMotion)
 
-  // PWA / browser chrome color
-  const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-  if (meta) meta.content = colors.surface
+  // PWA / browser chrome color (Android status + navigation bar, iOS standalone status bar)
+  const chromeColor = colors.surfaceContainer ?? colors.surface
+  const themeMetas = document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')
+  if (themeMetas.length > 0) {
+    themeMetas.forEach((m) => m.setAttribute('content', chromeColor))
+  } else {
+    const meta = document.createElement('meta')
+    meta.name = 'theme-color'
+    meta.setAttribute('content', chromeColor)
+    document.head.appendChild(meta)
+  }
+
+  // Edge-to-edge Android draws the gesture pill over the document background — keep it themed too
+  root.style.backgroundColor = chromeColor
+  if (document.body) document.body.style.backgroundColor = colors.surface
 }

@@ -13,6 +13,8 @@ import { SectionHeader } from '@/components/common/SectionHeader'
 import { PageContainer } from '@/components/common/PageContainer'
 import { Chip, Button } from '@/components/md3'
 import { pushRecentSearch } from '@/components/overlays/CommandPalette'
+import { fetchAlbumById } from '@/api/albums'
+import { fetchArtistById } from '@/api/artists'
 import { cn } from '@/lib/cn'
 
 type Filter = 'all' | 'tracks' | 'albums' | 'artists'
@@ -150,7 +152,23 @@ function SearchPage() {
               <SectionHeader title="Artists" />
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-x-4 gap-y-6">
                 {(filter === 'all' ? artists.slice(0, 8) : artists).map((a) => (
-                  <MediaCard key={a.id} title={a.name} subtitle="Artist" imageUrl={a.avatar_url} kind="artist" onClick={() => navigate({ to: '/artist/$artistId', params: { artistId: a.id } })} />
+                  <MediaCard
+                    key={a.id}
+                    title={a.name}
+                    subtitle="Artist"
+                    imageUrl={a.avatar_url}
+                    kind="artist"
+                    onClick={() => navigate({ to: '/artist/$artistId', params: { artistId: a.id } })}
+                    onPlay={async () => {
+                      try {
+                        const artist = await fetchArtistById(a.id)
+                        const t = artist.all_tracks.length ? artist.all_tracks : artist.top_tracks
+                        if (t.length) void playTrackWithQueue(t, 0, { type: 'artist', id: a.id, title: a.name })
+                      } catch {
+                        /* noop */
+                      }
+                    }}
+                  />
                 ))}
               </div>
             </section>
@@ -160,7 +178,21 @@ function SearchPage() {
               <SectionHeader title="Albums" />
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-6">
                 {(filter === 'all' ? albums.slice(0, 6) : albums).map((a) => (
-                  <MediaCard key={a.id} title={a.title} subtitle={a.artist} imageUrl={a.cover_url} onClick={() => navigate({ to: '/album/$albumId', params: { albumId: a.id } })} />
+                  <MediaCard
+                    key={a.id}
+                    title={a.title}
+                    subtitle={a.artist}
+                    imageUrl={a.cover_url}
+                    onClick={() => navigate({ to: '/album/$albumId', params: { albumId: a.id } })}
+                    onPlay={async () => {
+                      try {
+                        const album = await fetchAlbumById(a.id)
+                        if (album.tracks.length) void playTrackWithQueue(album.tracks, 0, { type: 'album', id: a.id, title: a.title, href: `/album/${a.id}` })
+                      } catch {
+                        /* noop */
+                      }
+                    }}
+                  />
                 ))}
               </div>
             </section>

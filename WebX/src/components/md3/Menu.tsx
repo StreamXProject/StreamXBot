@@ -27,6 +27,10 @@ export interface MenuProps {
 export const Menu: React.FC<MenuProps> = ({ open, onClose, items, anchor, align = 'start', className, header }) => {
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const anchorRef = useRef(anchor)
+  anchorRef.current = anchor
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useLayoutEffect(() => {
     if (!open || !anchor || !ref.current) return
@@ -51,19 +55,55 @@ export const Menu: React.FC<MenuProps> = ({ open, onClose, items, anchor, align 
 
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    const onDown = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        onCloseRef.current()
+      }
     }
+
+    const onDown = (e: PointerEvent) => {
+      // 1. If clicked inside the menu popup itself, allow normal interaction
+      if (ref.current && ref.current.contains(e.target as Node)) {
+        return
+      }
+
+      // 2. If clicked on the anchor element (e.g. 3-dots button), toggle closed & prevent reopening
+      const currentAnchor = anchorRef.current
+      if (currentAnchor instanceof HTMLElement && (currentAnchor === e.target || currentAnchor.contains(e.target as Node))) {
+        e.preventDefault()
+        e.stopPropagation()
+        onCloseRef.current()
+
+        // Swallow the upcoming click event so the anchor's onClick doesn't immediately reopen it
+        const swallowClick = (ev: MouseEvent) => {
+          if (currentAnchor === ev.target || currentAnchor.contains(ev.target as Node)) {
+            ev.stopPropagation()
+            ev.preventDefault()
+          }
+        }
+        window.addEventListener('click', swallowClick, { capture: true })
+        setTimeout(() => {
+          window.removeEventListener('click', swallowClick, { capture: true })
+        }, 400)
+        return
+      }
+
+      // 3. Clicked outside both the menu and the anchor: dismiss menu
+      onCloseRef.current()
+    }
+
+    const onResize = () => onCloseRef.current()
+
     window.addEventListener('keydown', onKey)
     window.addEventListener('pointerdown', onDown, true)
-    window.addEventListener('resize', onClose)
+    window.addEventListener('resize', onResize)
     return () => {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('pointerdown', onDown, true)
-      window.removeEventListener('resize', onClose)
+      window.removeEventListener('resize', onResize)
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open || typeof document === 'undefined') return null
 

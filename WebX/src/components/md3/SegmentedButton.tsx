@@ -33,7 +33,7 @@ export function SegmentedButton<T extends string>({ options, value, onChange, cl
               'state-layer flex-1 inline-flex items-center justify-center gap-1.5 font-semibold whitespace-nowrap transition-colors',
               size === 'sm' ? 'h-8 px-3 text-[12px] [&_svg]:size-4' : 'h-10 px-4 text-[14px] [&_svg]:size-[18px]',
               i > 0 && 'border-l border-outline',
-              active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'
+              active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface'
             )}
           >
             {active && showCheck ? <Check /> : o.icon}

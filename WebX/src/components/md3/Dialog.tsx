@@ -19,23 +19,29 @@ const SIZE = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-3xl' }
 
 export const Dialog: React.FC<DialogProps> = ({ open, onClose, title, icon, children, actions, className, fullscreenOnMobile, size = 'md' }) => {
   const ref = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
-        onClose()
+        onCloseRef.current()
       }
     }
     window.addEventListener('keydown', onKey, true)
     const prev = document.activeElement as HTMLElement | null
-    requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>('input,button,[tabindex]')?.focus())
+    requestAnimationFrame(() => {
+      if (ref.current && !ref.current.contains(document.activeElement)) {
+        ref.current.querySelector<HTMLElement>('input,button,[tabindex]')?.focus()
+      }
+    })
     return () => {
       window.removeEventListener('keydown', onKey, true)
       prev?.focus?.()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open || typeof document === 'undefined') return null
 

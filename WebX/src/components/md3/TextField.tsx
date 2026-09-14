@@ -1,4 +1,4 @@
-import React, { useId } from 'react'
+import React, { useId, useRef, useImperativeHandle } from 'react'
 import { cn } from '@/lib/cn'
 
 export interface TextFieldProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
@@ -16,21 +16,33 @@ export const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
     const autoId = useId()
     const inputId = id ?? autoId
     const hasError = Boolean(error)
+    const inputRef = useRef<HTMLInputElement>(null)
+
+    useImperativeHandle(ref, () => inputRef.current as HTMLInputElement)
+
+    const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+      const target = e.target as HTMLElement
+      if (target !== inputRef.current && !target.closest('button') && !target.closest('a')) {
+        inputRef.current?.focus()
+      }
+    }
+
     return (
       <div className={cn('flex flex-col gap-1', containerClassName)}>
         <div
+          onClick={handleContainerClick}
           className={cn(
-            'relative flex items-center gap-3 h-14 px-4 transition-colors',
+            'relative flex items-center gap-3 h-14 px-4 transition-colors cursor-text',
             variant === 'outlined'
               ? cn('rounded-xs border', hasError ? 'border-error' : 'border-outline focus-within:border-primary focus-within:ring-1 focus-within:ring-primary')
               : cn('rounded-t-xs bg-surface-highest border-b', hasError ? 'border-error' : 'border-on-surface-variant focus-within:border-primary'),
-            rest.disabled && 'opacity-40'
+            rest.disabled && 'opacity-40 cursor-not-allowed'
           )}
         >
-          {leading && <span className="text-on-surface-variant shrink-0 [&_svg]:size-5">{leading}</span>}
+          {leading && <span className="text-on-surface-variant shrink-0 [&_svg]:size-5 pointer-events-none">{leading}</span>}
           <div className="relative flex-1 h-full">
             <input
-              ref={ref}
+              ref={inputRef}
               id={inputId}
               placeholder={label ? ' ' : rest.placeholder}
               className={cn(

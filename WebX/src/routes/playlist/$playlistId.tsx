@@ -71,7 +71,7 @@ function PlaylistPage() {
         isPlaying={isPlaying}
         onPlay={() => (isPlaying ? togglePlay() : tracks.length && void playTrackWithQueue(tracks, 0, ctx))}
         onShuffle={() => tracks.length && void playTrackWithQueue([...tracks].sort(() => Math.random() - 0.5), 0, ctx)}
-        onMore={(a) => setMenu(a)}
+        onMore={(a) => setMenu((curr) => (curr ? null : a))}
       />
       {isLoading ? (
         <TrackRowSkeleton />

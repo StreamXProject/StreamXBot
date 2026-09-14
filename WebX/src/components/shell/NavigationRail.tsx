@@ -41,12 +41,12 @@ const RailItem: React.FC<{ item: NavItem; active: boolean; expanded: boolean }> 
         className={cn(
           'state-layer relative flex items-center justify-center rounded-full transition-[background-color,width] duration-200 ease-emphasized',
           expanded ? 'size-6' : 'w-14 h-8',
-          active ? (expanded ? 'text-on-secondary-container' : 'bg-secondary-container text-on-secondary-container') : 'text-on-surface-variant group-hover:text-on-surface'
+          active ? (expanded ? 'text-primary' : 'bg-primary-container text-on-primary-container') : 'text-on-surface-variant group-hover:text-on-surface'
         )}
       >
         <Icon className="size-6" strokeWidth={active ? 2.4 : 1.9} />
       </span>
-      <span className={cn('type-label-md transition-colors', expanded ? 'type-label-lg' : '', active ? 'text-on-surface font-bold' : 'text-on-surface-variant')}>
+      <span className={cn('type-label-md transition-colors', expanded ? 'type-label-lg' : '', active ? 'text-primary font-bold' : 'text-on-surface-variant')}>
         {item.label}
       </span>
     </Link>

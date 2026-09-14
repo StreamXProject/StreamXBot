@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, Link } from '@tanstack/react-router'
-import { ChevronDown, Heart, Mic2, ListMusic, Info, MoreHorizontal, Moon, Gauge, Download, Disc3, User, ListPlus, Share2, Radio } from 'lucide-react'
+import { ChevronDown, Heart, Mic2, ListMusic, Info, MoreHorizontal, Moon, Gauge, Download, Disc3, User, ListPlus, Share2, Radio, AudioLines, VolumeX, Volume2 } from 'lucide-react'
 import { usePlayerStore } from '@/stores/playerStore'
 import { useQueueStore } from '@/stores/queueStore'
 import { useUiStore, type FullPlayerPane } from '@/stores/uiStore'
@@ -11,11 +11,12 @@ import { PlaybackControls } from './PlaybackControls'
 import { VolumeControl } from './VolumeControl'
 import { LyricsView } from './LyricsView'
 import { QueueList } from './QueueList'
-import { AmbientBackdrop } from './AmbientBackdrop'
 import { Artwork } from '@/components/common/Artwork'
 import { QualityBadge } from '@/components/common/QualityBadge'
 import { IconButton, SegmentedButton, Menu, type MenuItem } from '@/components/md3'
 import { useIsDesktop } from '@/hooks/useMediaQuery'
+import { isIOS } from '@/hooks/usePwa'
+import { Slider } from '@/components/md3'
 import { getDownloadUrl } from '@/api/stream'
 import { formatDuration, formatQuality } from '@/lib/format'
 import { cn } from '@/lib/cn'
@@ -80,6 +81,11 @@ export const FullScreenPlayer: React.FC = () => {
   const setSleepTimerOpen = useUiStore((s) => s.setSleepTimerOpen)
   const track = usePlayerStore((s) => s.currentTrack)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
+  const volume = usePlayerStore((s) => s.volume)
+  const isMuted = usePlayerStore((s) => s.isMuted)
+  const setVolume = usePlayerStore((s) => s.setVolume)
+  const toggleMute = usePlayerStore((s) => s.toggleMute)
+  const canSetVolume = !isIOS() // iOS ignores programmatic volume — hardware buttons only
   const playbackRate = usePlayerStore((s) => s.playbackRate)
   const setPlaybackRate = usePlayerStore((s) => s.setPlaybackRate)
   const sleepAt = usePlayerStore((s) => s.sleepAt)
@@ -87,7 +93,6 @@ export const FullScreenPlayer: React.FC = () => {
   const upNextCount = useQueueStore((s) => Math.max(0, s.queue.length - s.currentIndex - 1))
   const isLiked = useLibraryStore((s) => (track ? s.likedIds.has(track.id) : false))
   const toggleLike = useLibraryStore((s) => s.toggleLike)
-  const ambient = useThemeStore((s) => s.activeTheme.effects.ambientBackdrop)
   const dynamicColor = useThemeStore((s) => s.dynamicColor)
   const setDynamicSeedFromImage = useThemeStore((s) => s.setDynamicSeedFromImage)
   const isDesktop = useIsDesktop()
@@ -207,37 +212,41 @@ export const FullScreenPlayer: React.FC = () => {
       // @ts-expect-error React 19 supports inert
       inert={open ? undefined : ''}
     >
-      <AmbientBackdrop src={track.cover_url} enabled={ambient && open} />
-
       {/* Top bar / drag handle */}
       <header
-        className="relative z-10 flex items-center justify-between gap-2 px-3 sm:px-5 h-[calc(4rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] shrink-0 touch-none"
+        className="relative z-10 flex items-center justify-between gap-1.5 sm:gap-2 px-2.5 sm:px-5 h-[calc(3.5rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] shrink-0 touch-none"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
-        <div className="w-[88px] sm:w-[104px] shrink-0 flex justify-start">
-          <IconButton label="Minimize" size="lg" onClick={close}>
+        <div className="shrink-0 flex items-center justify-start w-10 sm:w-[104px]">
+          <IconButton label="Minimize" size="md" className="sm:size-12" onClick={close}>
             <ChevronDown />
           </IconButton>
         </div>
-        <div className="flex-1 min-w-0 flex justify-center px-2">
-          <div className="inline-flex items-center gap-2 h-9 px-3.5 rounded-full glass border border-outline-variant/40 max-w-full">
-            <Radio className="size-4 text-primary shrink-0" />
-            <span className="type-label-md text-on-surface-variant shrink-0">Playing from</span>
-            <span className="type-label-lg text-on-surface truncate">{context?.title ?? track.album ?? 'Your library'}</span>
+        <div className="flex-1 min-w-0 flex justify-center px-1">
+          <div
+            className="inline-flex items-center gap-1.5 sm:gap-2 h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-full bg-surface-container/90 border border-outline-variant/40 max-w-full shadow-sm"
+            style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
+          >
+            <Radio className="size-3.5 sm:size-4 text-primary shrink-0" />
+            <span className="text-[11px] sm:text-[12px] font-medium text-on-surface-variant shrink-0">Playing from</span>
+            <span className="text-[12px] sm:text-[14px] font-semibold text-on-surface truncate min-w-0" title={context?.title ?? track.album ?? 'Your library'}>
+              {context?.title ?? track.album ?? 'Your library'}
+            </span>
           </div>
         </div>
-        <div className="w-[88px] sm:w-[104px] shrink-0 flex items-center justify-end gap-1">
-          <IconButton label="Add to playlist" size="lg" onClick={() => openAddToPlaylist([track])}>
-            <ListPlus />
-          </IconButton>
-          <IconButton label="More" size="lg" onClick={(e) => setMenuAnchor(e.currentTarget)}>
-            <MoreHorizontal />
-          </IconButton>
+        <div className="shrink-0 flex items-center justify-end w-10 sm:w-[104px]">
+          <div className="hidden sm:flex items-center gap-0.5 sm:gap-1">
+            <IconButton label="Add to playlist" size="md" className="sm:size-12" onClick={() => openAddToPlaylist([track])}>
+              <ListPlus />
+            </IconButton>
+            <IconButton label="More" size="md" className="sm:size-12" onClick={(e) => setMenuAnchor((curr) => (curr ? null : e.currentTarget))}>
+              <MoreHorizontal />
+            </IconButton>
+          </div>
         </div>
-        <div className="md:hidden absolute left-1/2 -translate-x-1/2 top-1.5 w-9 h-1 rounded-full bg-on-surface/25" />
       </header>
 
       {/* Compact / tablet: pane switcher lives right under the header */}
@@ -267,11 +276,11 @@ export const FullScreenPlayer: React.FC = () => {
       >
         {/* Left: artwork + controls */}
         <section className={cn('flex flex-col justify-center min-h-0 w-full', isDesktop ? 'max-w-[540px] mx-auto' : 'flex-1', !showPlayer && 'hidden')}>
-          <div className={cn('mx-auto w-full min-h-0', isDesktop ? 'max-w-[460px]' : 'flex-1 flex items-center justify-center py-4')}>
+          <div className={cn('mx-auto w-full min-h-0', isDesktop ? 'max-w-[460px]' : 'flex-1 flex items-center justify-center py-2 sm:py-4')}>
             <div
               className={cn('np-art relative', isDesktop ? 'w-full' : 'max-h-full max-w-full')}
               data-playing={isPlaying}
-              style={isDesktop ? undefined : { width: 'min(88vw, 56vh, 520px)' }}
+              style={isDesktop ? undefined : { width: 'min(86vw, 40vh, 520px)' }}
             >
               <Artwork src={track.cover_url} alt={track.title} priority className="aspect-square w-full rounded-xl" />
             </div>
@@ -285,7 +294,7 @@ export const FullScreenPlayer: React.FC = () => {
           <Scrubber size="lg" className="mt-4 sm:mt-5 shrink-0" />
           <PlaybackControls size="lg" className="mt-2 sm:mt-3 shrink-0" />
 
-          {/* Secondary row: volume + session chips */}
+          {/* Secondary row (tablet + desktop): volume + session chips */}
           <div className="mt-4 sm:mt-5 shrink-0 hidden sm:flex items-center justify-between gap-4">
             <VolumeControl sliderClassName="w-36 lg:w-44" />
             <div className="flex items-center gap-2">
@@ -299,6 +308,51 @@ export const FullScreenPlayer: React.FC = () => {
                   <Gauge className="size-3.5" /> {playbackRate}×
                 </span>
               )}
+            </div>
+          </div>
+
+          {/* Phone layout: volume pill + quick actions */}
+          <div className="sm:hidden shrink-0 mt-5 space-y-3">
+            {canSetVolume && (
+              <div className="flex items-center gap-2 h-14 px-2 rounded-full glass border border-outline-variant/40">
+                <IconButton label={isMuted ? 'Unmute' : 'Mute'} size="md" onClick={toggleMute} className={cn(isMuted && 'text-primary')}>
+                  <VolumeX />
+                </IconButton>
+                <Slider value={Math.round((isMuted ? 0 : volume) * 100)} min={0} max={100} onChange={(n) => setVolume(n / 100)} aria-label="Volume" className="flex-1" />
+                <IconButton label="Max volume" size="md" onClick={() => setVolume(1)}>
+                  <Volume2 />
+                </IconButton>
+              </div>
+            )}
+            <div className="grid grid-cols-4 items-center">
+              <button
+                onClick={() => openAddToPlaylist([track])}
+                className="state-layer flex flex-col items-center justify-center h-14 rounded-lg text-on-surface-variant"
+                aria-label="Add to playlist"
+              >
+                <ListPlus className="size-6" />
+              </button>
+              <button
+                onClick={() => { close(); navigate({ to: '/settings/equalizer' }) }}
+                className="state-layer flex flex-col items-center justify-center h-14 rounded-lg text-on-surface-variant border-l border-outline-variant/40"
+                aria-label="Equalizer"
+              >
+                <AudioLines className="size-6" />
+              </button>
+              <button
+                onClick={() => setSleepTimerOpen(true)}
+                className={cn('state-layer flex flex-col items-center justify-center h-14 rounded-lg border-l border-outline-variant/40', sleepAt ? 'text-primary' : 'text-on-surface-variant')}
+                aria-label="Sleep timer"
+              >
+                <Moon className={cn('size-6', sleepAt && 'fill-current')} />
+              </button>
+              <button
+                onClick={(e) => setMenuAnchor((curr) => (curr ? null : e.currentTarget))}
+                className="state-layer flex flex-col items-center justify-center h-14 rounded-lg text-on-surface-variant border-l border-outline-variant/40"
+                aria-label="More"
+              >
+                <MoreHorizontal className="size-6" />
+              </button>
             </div>
           </div>
         </section>

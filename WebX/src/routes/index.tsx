@@ -158,7 +158,7 @@ function HomePage() {
 
       {/* Mixes */}
       {(mixes.isLoading || (mixes.data && mixes.data.length > 0)) && (
-        <Shelf title="Made for you" subtitle="Rotating mixes built from your library" itemWidth="w-44 sm:w-48">
+        <Shelf title="Made for you" subtitle="Rotating mixes built from your library" itemWidth="w-[62vw] max-w-[260px] sm:w-48">
           {mixes.isLoading
             ? [1, 2, 3, 4].map((i) => <div key={i} className="space-y-2"><Skeleton className="aspect-square" /><Skeleton variant="text" className="w-2/3" /></div>)
             : mixes.data!.map((m) => <MixCard key={m.id} mix={m} onPlay={playMix} />)}

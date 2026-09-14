@@ -3,7 +3,7 @@ import { Music2 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
 export const AuthCard: React.FC<{ title: string; subtitle?: React.ReactNode; children: React.ReactNode; footer?: React.ReactNode; className?: string }> = ({ title, subtitle, children, footer, className }) => (
-  <div className={cn('w-full max-w-[420px] page-enter', className)}>
+  <div className={cn('w-full max-w-[420px] my-auto page-enter', className)}>
     <div className="flex items-center gap-3 mb-8">
       <span className="size-11 rounded-md bg-primary text-on-primary flex items-center justify-center shadow-md3-1"><Music2 className="size-5" strokeWidth={2.5} /></span>
       <div>

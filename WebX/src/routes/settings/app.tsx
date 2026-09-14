@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Download, RefreshCw, Trash2, Smartphone, Share, CheckCircle2, WifiOff, Bell } from 'lucide-react'
+import { Download, RefreshCw, Trash2, Smartphone, Share, CheckCircle2, WifiOff, Bell, CloudDownload } from 'lucide-react'
 import { SettingsPage, SettingsSection, SettingRow } from '@/components/settings/SettingsPrimitives'
 import { Switch, Button } from '@/components/md3'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { toast } from '@/stores/uiStore'
-import { usePwa, applyUpdate, checkForUpdate, clearOfflineCache, cacheUsage } from '@/hooks/usePwa'
+import { usePwa, applyUpdate, checkForUpdate, clearOfflineCache, cacheUsage, forceFetchLatestFrontend } from '@/hooks/usePwa'
 
 export const Route = createFileRoute('/settings/app')({
   component: AppSettings,
@@ -18,6 +18,7 @@ function AppSettings() {
   const pwa = usePwa()
   const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null)
   const [checking, setChecking] = useState(false)
+  const [fetchingLatest, setFetchingLatest] = useState(false)
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine)
   const swSupported = typeof navigator !== 'undefined' && 'serviceWorker' in navigator
 
@@ -66,6 +67,24 @@ function AppSettings() {
           label="Check for updates"
           description={pwa.updateReady ? 'New version ready' : 'Checked automatically on reopen'}
           control={pwa.updateReady ? <Button onClick={applyUpdate}>Reload now</Button> : <Button variant="tonal" loading={checking} disabled={!swSupported} onClick={() => void check()}>Check</Button>}
+        />
+        <SettingRow
+          icon={<CloudDownload />}
+          label="Fetch deployed frontend"
+          description="latest deployed build from the server and purges all cached assets"
+          control={
+            <Button
+              variant="tonal"
+              loading={fetchingLatest}
+              onClick={() => {
+                setFetchingLatest(true)
+                toast('Fetching latest deployed frontend…')
+                void forceFetchLatestFrontend()
+              }}
+            >
+              Fetch & reload
+            </Button>
+          }
         />
         <SettingRow label="Apply updates automatically" description="Reload when a new version downloads" control={<Switch checked={s.pwaAutoUpdate} onChange={(v) => s.set('pwaAutoUpdate', v)} label="Auto-update" />} />
       </SettingsSection>

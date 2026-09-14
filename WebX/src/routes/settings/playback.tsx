@@ -1,11 +1,10 @@
 import React from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Waves, Zap, RotateCcw, Gauge, Mic2, ShieldAlert, Vibrate, Hand } from 'lucide-react'
+import { Zap, RotateCcw, Gauge, Mic2, ShieldAlert, Vibrate, Hand } from 'lucide-react'
 import { SettingsPage, SettingsSection, SettingRow } from '@/components/settings/SettingsPrimitives'
-import { SegmentedButton, Switch, Slider } from '@/components/md3'
-import { useSettingsStore, type StreamFormat } from '@/stores/settingsStore'
+import { Switch, Slider } from '@/components/md3'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { usePlayerStore } from '@/stores/playerStore'
-import { canBrowserPlayAlac, canBrowserPlayFlac } from '@/api/stream'
 
 export const Route = createFileRoute('/settings/playback')({
   component: PlaybackSettings,
@@ -15,48 +14,15 @@ function PlaybackSettings() {
   const s = useSettingsStore()
   const playbackRate = usePlayerStore((p) => p.playbackRate)
   const setPlaybackRate = usePlayerStore((p) => p.setPlaybackRate)
-  const alac = canBrowserPlayAlac()
-  const flac = canBrowserPlayFlac()
 
   return (
     <SettingsPage title="Playback" description="Streaming and playback behaviour">
       <SettingsSection title="Streaming">
         <SettingRow
-          icon={<Waves />}
-          label="Stream format"
-          description={
-            s.streamFormat === 'auto'
-              ? `Original · FLAC only when needed (ALAC ${alac ? 'supported' : 'unsupported'} here)`
-              : s.streamFormat === 'flac'
-                ? 'Always FLAC · more server work'
-                : 'Original only · ALAC may not play here'
-          }
-          stacked
-          control={
-            <SegmentedButton<StreamFormat>
-              value={s.streamFormat}
-              onChange={(v) => s.set('streamFormat', v)}
-              showCheck={false}
-              options={[{ value: 'auto', label: 'Auto' }, { value: 'original', label: 'Original' }, { value: 'flac', label: 'FLAC' }]}
-              className="w-full sm:w-auto"
-            />
-          }
-        />
-        <SettingRow
           icon={<Zap />}
           label="Prefetch next track"
           description="Pre-buffer the next track"
           control={<Switch checked={s.prefetchNext} onChange={(v) => s.set('prefetchNext', v)} label="Prefetch next track" />}
-        />
-        <SettingRow
-          label="Browser codec support"
-          description={
-            <span className="inline-flex flex-wrap gap-x-4 gap-y-1">
-              <span>FLAC: <b className={flac ? 'text-tertiary' : 'text-error'}>{flac ? 'yes' : 'no'}</b></span>
-              <span>ALAC: <b className={alac ? 'text-tertiary' : 'text-error'}>{alac ? 'yes' : 'no'}</b></span>
-              <span>MP3 / AAC: <b className="text-tertiary">yes</b></span>
-            </span>
-          }
         />
       </SettingsSection>
 

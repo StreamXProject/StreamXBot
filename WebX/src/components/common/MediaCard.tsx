@@ -59,7 +59,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ title, subtitle, imageUrl,
       </div>
       <div className={cn('min-w-0 px-0.5', isArtist && 'text-center')}>
         <h3 className="type-title-sm text-on-surface truncate">{title}</h3>
-        {subtitle && <p className="type-body-sm text-on-surface-variant truncate mt-0.5">{subtitle}</p>}
+        {subtitle && <p className="type-body-sm text-on-surface-variant line-clamp-2 sm:truncate mt-0.5">{subtitle}</p>}
       </div>
     </div>
   )

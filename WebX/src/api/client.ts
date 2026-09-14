@@ -57,7 +57,14 @@ export function normalizeBaseUrl(raw: string | null | undefined): string {
 }
 
 export function getBaseUrl(): string {
-  return normalizeBaseUrl(useSettingsStore.getState().apiBaseUrl) || (typeof window !== 'undefined' ? window.location.origin : '')
+  const configured = normalizeBaseUrl(useSettingsStore.getState().apiBaseUrl)
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    const origin = window.location.origin
+    if (origin.startsWith('https://') && configured.startsWith('http://localhost')) {
+      return origin
+    }
+  }
+  return configured || (typeof window !== 'undefined' ? window.location.origin : '')
 }
 
 export function getToken(): string | null {

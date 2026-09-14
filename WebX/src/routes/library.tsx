@@ -69,10 +69,10 @@ function LibraryPage() {
       {tab === 'liked' && (
         <section>
           {liked.length > 0 && (
-            <div className="flex items-center gap-2 mb-3">
-              <Button icon={<Play className="fill-current" />} onClick={() => void playTrackWithQueue(liked, 0, { type: 'library', title: 'Liked songs' })}>Play</Button>
-              <Button variant="tonal" icon={<Shuffle />} onClick={() => void playTrackWithQueue([...liked].sort(() => Math.random() - 0.5), 0, { type: 'library', title: 'Liked songs' })}>Shuffle</Button>
-              <span className="ml-auto type-body-sm text-on-surface-variant">{formatLongDuration(likedDuration)}</span>
+            <div className="flex items-center gap-2 mb-3 overflow-x-auto scrollbar-none pb-0.5">
+              <Button className="shrink-0" icon={<Play className="fill-current" />} onClick={() => void playTrackWithQueue(liked, 0, { type: 'library', title: 'Liked songs' })}>Play</Button>
+              <Button className="shrink-0" variant="tonal" icon={<Shuffle />} onClick={() => void playTrackWithQueue([...liked].sort(() => Math.random() - 0.5), 0, { type: 'library', title: 'Liked songs' })}>Shuffle</Button>
+              <span className="ml-auto type-body-sm text-on-surface-variant shrink-0">{formatLongDuration(likedDuration)}</span>
             </div>
           )}
           {loading ? (

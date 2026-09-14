@@ -46,8 +46,7 @@ export function registerServiceWorker(): void {
           if (sw.state === 'installed' && navigator.serviceWorker.controller) {
             waitingWorker = sw
             notify()
-            if (useSettingsStore.getState().pwaAutoUpdate) applyUpdate()
-            else toast('A new version of WebX is ready', { duration: 10_000, action: { label: 'Reload', onClick: applyUpdate } })
+            applyUpdate()
           }
         })
       }
@@ -73,10 +72,79 @@ export function applyUpdate(): void {
 }
 
 export async function checkForUpdate(): Promise<boolean> {
-  const reg = await navigator.serviceWorker?.getRegistration()
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return false
+  const reg = await navigator.serviceWorker.getRegistration()
   if (!reg) return false
-  await reg.update()
-  return Boolean(reg.waiting)
+
+  return new Promise<boolean>((resolve) => {
+    let resolved = false
+    const done = (val: boolean) => {
+      if (!resolved) {
+        resolved = true
+        resolve(val)
+      }
+    }
+
+    if (reg.waiting || reg.installing) {
+      done(true)
+      return
+    }
+
+    reg.addEventListener('updatefound', () => done(true), { once: true })
+
+    reg
+      .update()
+      .then(() => {
+        setTimeout(() => {
+          done(Boolean(reg.waiting || reg.installing))
+        }, 1200)
+      })
+      .catch(() => done(false))
+  })
+}
+
+/**
+ * Hard-bypasses all caches, unregisters stale service workers, and forces
+ * the browser to fetch the currently deployed frontend build directly from the server.
+ */
+export async function forceFetchLatestFrontend(): Promise<void> {
+  if (typeof window === 'undefined') return
+
+  // 1. Purge all CacheStorage
+  if (typeof caches !== 'undefined') {
+    try {
+      const keys = await caches.keys()
+      await Promise.all(keys.map((k) => caches.delete(k)))
+    } catch (e) {
+      console.warn('[PWA] Error clearing cache storage:', e)
+    }
+  }
+
+  // 2. Unregister all service workers so they don't intercept the reload
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(registrations.map((r) => r.unregister()))
+    } catch (e) {
+      console.warn('[PWA] Error unregistering service workers:', e)
+    }
+  }
+
+  // 3. Pre-fetch the live index.html with a unique cache-busting timestamp
+  try {
+    const bust = `_t=${Date.now()}`
+    await fetch(`/?${bust}`, {
+      cache: 'reload',
+      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', Pragma: 'no-cache' },
+    })
+  } catch (e) {
+    console.warn('[PWA] Error prefetching live index:', e)
+  }
+
+  // 4. Force hard-reload with cache-buster query so iOS WebKit drops memory cache
+  const url = new URL(window.location.href)
+  url.searchParams.set('_v', String(Date.now()))
+  window.location.replace(url.toString())
 }
 
 export async function clearOfflineCache(): Promise<void> {

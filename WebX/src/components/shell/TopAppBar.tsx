@@ -47,7 +47,10 @@ export const TopAppBar: React.FC = () => {
   const isDetail = !title
 
   return (
-    <header className="glass h-[calc(var(--webx-topbar-height)+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] shrink-0 flex items-center gap-2 px-3 md:px-5 z-10 border-b border-outline-variant/40">
+    <header
+      className="bg-surface-container border-b border-outline-variant/40 h-[calc(3.5rem+env(safe-area-inset-top,0px))] md:h-[calc(var(--webx-topbar-height)+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] shrink-0 flex items-center gap-2 px-3 md:px-5 z-10"
+      style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
+    >
       {/* Left: back on detail pages, brand on mobile */}
       <div className="flex items-center gap-1 min-w-0 md:w-1/4">
         {isDetail && canGoBack ? (
@@ -85,7 +88,7 @@ export const TopAppBar: React.FC = () => {
             <UserIcon className="size-4" /> Sign in
           </button>
         ) : (
-          <button onClick={(e) => setMenuAnchor(e.currentTarget)} aria-label="Account menu" className="state-layer size-10 rounded-full inline-flex items-center justify-center">
+          <button onClick={(e) => setMenuAnchor((curr) => (curr ? null : e.currentTarget))} aria-label="Account menu" className="state-layer size-10 rounded-full inline-flex items-center justify-center">
             <UserAvatar name={user?.name ?? 'Guest'} url={user?.profile_url || user?.photo_url || user?.avatarUrl} className="size-8" />
           </button>
         )}

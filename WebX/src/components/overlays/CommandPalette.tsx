@@ -8,6 +8,8 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { useSearch } from '@/hooks/useQueries'
 import { Artwork } from '@/components/common/Artwork'
 import { fetchShuffle } from '@/api/browse'
+import { fetchAlbumById } from '@/api/albums'
+import { fetchArtistById } from '@/api/artists'
 import { cn } from '@/lib/cn'
 import type { Track } from '@/schemas/track'
 
@@ -16,7 +18,7 @@ interface Cmd {
   label: string
   hint?: string
   icon: React.ReactNode
-  run: () => void
+  run: () => void | Promise<void>
   kind: 'nav' | 'action' | 'track' | 'album' | 'artist'
   track?: Track
 }
@@ -56,12 +58,12 @@ export const CommandPalette: React.FC = () => {
   const close = () => setOpen(false)
   const go = (to: string) => {
     close()
+    useUiStore.getState().closeFullPlayer()
     navigate({ to } as never)
   }
 
   const commands = useMemo<Cmd[]>(() => {
     const ui = useUiStore.getState()
-    const queue = useQueueStore.getState()
     const base: Cmd[] = [
       { id: 'home', label: 'Home', icon: <Home />, kind: 'nav', run: () => go('/') },
       { id: 'library', label: 'Your library', icon: <Library />, kind: 'nav', run: () => go('/library') },
@@ -76,9 +78,9 @@ export const CommandPalette: React.FC = () => {
         icon: <Shuffle />,
         kind: 'action',
         run: async () => {
-          close()
           const t = await fetchShuffle(100)
-          if (t.length) void queue.playTrackWithQueue(t, 0, { type: 'radio', title: 'Library shuffle' })
+          if (t.length) void useQueueStore.getState().playTrackWithQueue(t, 0, { type: 'radio', title: 'Library shuffle' })
+          close()
         },
       },
       { id: 'sleep', label: 'Sleep timer', icon: <Moon />, kind: 'action', run: () => { close(); ui.setSleepTimerOpen(true) } },
@@ -98,20 +100,111 @@ export const CommandPalette: React.FC = () => {
           kind: 'track',
           track: t,
           run: () => {
-            close()
+            const allTracks = data.tracks
+            const trackIdx = allTracks.findIndex((item) => item.id === t.id)
+            const startIndex = trackIdx >= 0 ? trackIdx : 0
+            void useQueueStore.getState().playTrackWithQueue(allTracks, startIndex, {
+              type: 'search',
+              title: `Search “${q.trim()}”`,
+            })
             pushRecentSearch(q.trim())
-            void queue.playTrackWithQueue(data.tracks, data.tracks.indexOf(t), { type: 'search', title: `Search “${q.trim()}”` })
+            close()
           },
         })
       }
       for (const a of data.albums.slice(0, 3)) {
-        results.push({ id: `a-${a.id}`, label: a.title, hint: `Album · ${a.artist}`, icon: <Artwork src={a.cover_url} alt="" kind="album" className="size-8 rounded-xs" />, kind: 'album', run: () => { close(); navigate({ to: '/album/$albumId', params: { albumId: a.id } }) } })
+        results.push({
+          id: `a-${a.id}`,
+          label: a.title,
+          hint: `Album · ${a.artist}`,
+          icon: <Artwork src={a.cover_url} alt="" kind="album" className="size-8 rounded-xs" />,
+          kind: 'album',
+          run: async () => {
+            close()
+            useUiStore.getState().closeFullPlayer()
+            pushRecentSearch(q.trim())
+            navigate({ to: '/album/$albumId', params: { albumId: a.id } })
+            try {
+              const album = await fetchAlbumById(a.id)
+              const tracks = album.tracks && album.tracks.length > 0
+                ? album.tracks
+                : data.tracks.filter((t) => t.album_id === a.id || t.album?.toLowerCase() === a.title.toLowerCase())
+              if (tracks.length > 0) {
+                void useQueueStore.getState().playTrackWithQueue(tracks, 0, {
+                  type: 'album',
+                  id: a.id,
+                  title: album.title || a.title,
+                  href: `/album/${a.id}`,
+                })
+              }
+            } catch (err) {
+              console.error('Failed to play album from search', err)
+              const fallback = data.tracks.filter((t) => t.album_id === a.id || t.album?.toLowerCase() === a.title.toLowerCase())
+              if (fallback.length > 0) {
+                void useQueueStore.getState().playTrackWithQueue(fallback, 0, {
+                  type: 'album',
+                  id: a.id,
+                  title: a.title,
+                  href: `/album/${a.id}`,
+                })
+              }
+            }
+          },
+        })
       }
       for (const ar of data.artists.slice(0, 3)) {
-        results.push({ id: `ar-${ar.id}`, label: ar.name, hint: 'Artist', icon: <Artwork src={ar.avatar_url} alt="" kind="artist" className="size-8" />, kind: 'artist', run: () => { close(); navigate({ to: '/artist/$artistId', params: { artistId: ar.id } }) } })
+        results.push({
+          id: `ar-${ar.id}`,
+          label: ar.name,
+          hint: 'Artist',
+          icon: <Artwork src={ar.avatar_url} alt="" kind="artist" className="size-8" />,
+          kind: 'artist',
+          run: async () => {
+            close()
+            useUiStore.getState().closeFullPlayer()
+            pushRecentSearch(q.trim())
+            navigate({ to: '/artist/$artistId', params: { artistId: ar.id } })
+            try {
+              const artist = await fetchArtistById(ar.id)
+              const artistTracks = artist.all_tracks.length ? artist.all_tracks : artist.top_tracks
+              const tracks = artistTracks.length > 0
+                ? artistTracks
+                : data.tracks.filter((t) => t.artist_id === ar.id || t.artist?.toLowerCase() === ar.name.toLowerCase())
+              if (tracks.length > 0) {
+                void useQueueStore.getState().playTrackWithQueue(tracks, 0, {
+                  type: 'artist',
+                  id: ar.id,
+                  title: artist.name || ar.name,
+                })
+              }
+            } catch (err) {
+              console.error('Failed to play artist from search', err)
+              const fallback = data.tracks.filter((t) => t.artist_id === ar.id || t.artist?.toLowerCase() === ar.name.toLowerCase())
+              if (fallback.length > 0) {
+                void useQueueStore.getState().playTrackWithQueue(fallback, 0, {
+                  type: 'artist',
+                  id: ar.id,
+                  title: ar.name,
+                })
+              }
+            }
+          },
+        })
       }
       if (data.total > 0) {
-        results.push({ id: 'all', label: `See all results for “${q.trim()}”`, hint: `${data.total} tracks`, icon: <ArrowRight />, kind: 'nav', run: () => { close(); pushRecentSearch(q.trim()); navigate({ to: '/search', search: { q: q.trim() } }) } })
+        results.push({
+          id: 'all',
+          label: `See all results for “${q.trim()}”`,
+          hint: `${data.total} tracks`,
+          icon: <ArrowRight />,
+          kind: 'nav',
+          run: () => {
+            close()
+            useUiStore.getState().closeFullPlayer()
+            pushRecentSearch(q.trim())
+            navigate({ to: '/search', search: { q: q.trim() } })
+          },
+        })
       }
     }
     return [...results, ...filtered]
@@ -134,6 +227,7 @@ export const CommandPalette: React.FC = () => {
       if (c) c.run()
       else if (q.trim()) {
         close()
+        useUiStore.getState().closeFullPlayer()
         pushRecentSearch(q.trim())
         navigate({ to: '/search', search: { q: q.trim() } })
       }
@@ -183,7 +277,13 @@ export const CommandPalette: React.FC = () => {
               <p className="px-3 py-1 type-label-md text-on-surface-variant">Recent searches</p>
               <div className="flex flex-wrap gap-1.5 px-3 pt-1">
                 {recent.map((r) => (
-                  <button key={r} onClick={() => setQ(r)} className="state-layer inline-flex items-center gap-1.5 h-8 px-3 rounded-sm border border-outline-variant type-label-lg text-on-surface-variant">
+                  <button
+                    key={r}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setQ(r)}
+                    className="state-layer inline-flex items-center gap-1.5 h-8 px-3 rounded-sm border border-outline-variant type-label-lg text-on-surface-variant"
+                  >
                     <Clock className="size-3.5" /> {r}
                   </button>
                 ))}
@@ -199,8 +299,10 @@ export const CommandPalette: React.FC = () => {
                 return (
                   <button
                     key={c.id}
+                    type="button"
                     data-index={idx}
                     onMouseEnter={() => setActive(idx)}
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => c.run()}
                     className={cn('w-full flex items-center gap-3 h-12 px-3 rounded-sm text-left transition-colors [&>svg]:size-5', isActive ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface')}
                   >
@@ -209,8 +311,8 @@ export const CommandPalette: React.FC = () => {
                       <span className="block truncate type-body-lg">{c.label}</span>
                       {c.hint && <span className="block truncate type-body-sm text-on-surface-variant">{c.hint}</span>}
                     </span>
-                    {c.kind === 'track' && <Play className="size-4 opacity-60" />}
-                    {isActive && c.kind !== 'track' && <CornerDownLeft className="size-4 opacity-60" />}
+                    {(c.kind === 'track' || c.kind === 'album' || c.kind === 'artist') && !isActive && <Play className="size-4 opacity-60" />}
+                    {isActive && <CornerDownLeft className="size-4 opacity-60" />}
                   </button>
                 )
               })}

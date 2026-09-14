@@ -236,7 +236,19 @@ export class AudioEngine {
       if (currentSrc !== targetSrc) {
         // Note: NEVER set crossOrigin on this.audio — iOS Safari WebKit fails FLAC streaming
         // over HTTP Range requests with MEDIA_ERR_SRC_NOT_SUPPORTED when crossOrigin is set.
+        try {
+          this.audio.pause()
+        } catch {
+          /* ignore */
+        }
         this.audio.src = url
+        this.audio.load()
+        try {
+          this.audio.currentTime = 0
+        } catch {
+          /* ignore */
+        }
+      } else {
         try {
           this.audio.currentTime = 0
         } catch {
@@ -261,24 +273,40 @@ export class AudioEngine {
         } catch (err) {
           if (seq !== this.loadSeq) return
           const e = err as Error
-          if (e?.name !== 'AbortError') {
-            console.warn('Autoplay failed:', e)
-            if (e?.name === 'NotAllowedError') {
-              const retryPlay = () => {
-                window.removeEventListener('pointerdown', retryPlay, true)
-                window.removeEventListener('click', retryPlay, true)
-                window.removeEventListener('keydown', retryPlay, true)
-                if (seq === this.loadSeq && this.currentTrack?.id === track.id) {
+          if (e?.name === 'AbortError') {
+            // Play was interrupted by loading new media or state transition.
+            // If the audio element is still paused, wait for canplay/loadeddata to start playback.
+            if (this.audio.paused && seq === this.loadSeq) {
+              const retry = () => {
+                if (seq === this.loadSeq && this.currentTrack?.id === track.id && this.audio.paused) {
                   this.audio.play().catch(() => {})
                 }
               }
-              window.addEventListener('pointerdown', retryPlay, { once: true, capture: true })
-              window.addEventListener('click', retryPlay, { once: true, capture: true })
-              window.addEventListener('keydown', retryPlay, { once: true, capture: true })
+              if (this.audio.readyState >= 2) {
+                setTimeout(retry, 50)
+              } else {
+                this.audio.addEventListener('canplay', retry, { once: true })
+                this.audio.addEventListener('loadeddata', retry, { once: true })
+              }
             }
-            this.isBuffering = false
-            this.emitState()
+            return
           }
+          console.warn('Autoplay failed:', e)
+          if (e?.name === 'NotAllowedError') {
+            const retryPlay = () => {
+              window.removeEventListener('pointerdown', retryPlay, true)
+              window.removeEventListener('click', retryPlay, true)
+              window.removeEventListener('keydown', retryPlay, true)
+              if (seq === this.loadSeq && this.currentTrack?.id === track.id) {
+                this.audio.play().catch(() => {})
+              }
+            }
+            window.addEventListener('pointerdown', retryPlay, { once: true, capture: true })
+            window.addEventListener('click', retryPlay, { once: true, capture: true })
+            window.addEventListener('keydown', retryPlay, { once: true, capture: true })
+          }
+          this.isBuffering = false
+          this.emitState()
         }
       } else {
         this.isBuffering = false

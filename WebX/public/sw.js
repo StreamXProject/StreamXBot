@@ -1,5 +1,5 @@
 /* WebX service worker — app shell + asset caching. Audio streams and API JSON are never cached. */
-const VERSION = 'webx-v7'
+const VERSION = 'webx-v21'
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 const IMAGE_CACHE = `${VERSION}-images`
@@ -73,7 +73,7 @@ async function navigation(event) {
   try {
     const preload = await event.preloadResponse
     if (preload) return preload
-    const res = await fetch(event.request)
+    const res = await fetch(event.request, { cache: 'no-cache' })
     const cache = await caches.open(SHELL_CACHE)
     cache.put('/index.html', res.clone())
     return res

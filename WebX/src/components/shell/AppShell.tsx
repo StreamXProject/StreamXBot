@@ -156,8 +156,8 @@ export const AppShell: React.FC = () => {
 
   if (isPublic) {
     return (
-      <div className="h-full min-h-full w-full flex overflow-y-auto bg-surface text-on-surface pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]">
-        <main className="w-full min-h-full flex items-center justify-center p-4">
+      <div className="fixed inset-0 w-full h-full flex flex-col overflow-y-auto bg-surface text-on-surface pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]">
+        <main className="w-full min-h-full flex-1 flex flex-col items-center p-4">
           <Outlet />
         </main>
         <ToastHost />
@@ -166,7 +166,7 @@ export const AppShell: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-0 h-full h-[100dvh] w-full flex flex-col bg-surface text-on-surface overflow-hidden pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]">
+    <div className="fixed inset-0 w-full flex flex-col bg-surface text-on-surface overflow-hidden pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]">
       <div
         ref={shellRef}
         className="flex-1 min-h-0 flex flex-col"

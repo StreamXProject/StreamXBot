@@ -21,6 +21,10 @@ export const API_ENDPOINTS = {
   AUTH_LOGOUT: '/auth/logout',
   AUTH_ME: '/auth/me',
   AUTH_TG_LOGIN: '/auth/tg/login',
+  AUTH_TELEGRAM_START: '/auth/telegram/start',
+  AUTH_TELEGRAM_CONFIG: '/auth/telegram/config',
+  AUTH_TELEGRAM_WIDGET: '/auth/telegram/widget',
+  AUTH_TELEGRAM_VALIDATE_TOKEN: '/auth/telegram/validate-token',
   WEBAPP_VERIFY: '/webapp/verify',
 
   // Catalog
