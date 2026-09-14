@@ -132,9 +132,10 @@ DEBUG = _get_bool("DEBUG", False)
 # Thumbnail Generation
 COLLEGE = _get_bool("COLLEGE", True)
 TEXT_COLOR = _get_str("TEXT_COLOR", "#FFFFFF")
+YOUTUBE_COVER_SEARCH = _get_bool("YOUTUBE_COVER_SEARCH", True)
 
 # API & Web
-CORS_ORIGIN = _get_str("CORS_ORIGIN", "https://streamxweb-chi.vercel.app")
+CORS_ORIGIN = _get_str("CORS_ORIGIN", "*")
 CORS_ORIGINS = _get_str("CORS_ORIGINS", CORS_ORIGIN)
 COOKIE_SECURE = _get_bool("COOKIE_SECURE", True)
 COOKIE_SAMESITE = _get_str("COOKIE_SAMESITE", "none")
@@ -143,6 +144,12 @@ COOKIE_SAMESITE = _get_str("COOKIE_SAMESITE", "none")
 SESSION_STRING = _get_str("SESSION_STRING")
 SOURCE_CHANNEL_IDS = _get_list_int("SOURCE_CHANNEL_IDS", [])
 CHAT_TOPIC = _get_chat_topic("CHAT_TOPIC", 0)
+USERBOT_COOLDOWN_SEC = float(os.getenv("USERBOT_COOLDOWN_SEC", "0.2"))
+USERBOT_BATCH_SIZE = int(os.getenv("USERBOT_BATCH_SIZE", "50"))
+USERBOT_BATCH_COOLDOWN_SEC = float(os.getenv("USERBOT_BATCH_COOLDOWN_SEC", "1.0"))
+USERBOT_DUMP_MODE = str(os.getenv("USERBOT_DUMP_MODE", "FORWARD") or "FORWARD").strip().upper()
+USERBOT_CAPTION_MODE = str(os.getenv("USERBOT_CAPTION_MODE", "LAST") or "LAST").strip().upper()
+ENRICHMENT_WORKERS = int(os.getenv("ENRICHMENT_WORKERS", os.getenv("PROCESSING_CONTENT", "16")))
 
 # Misc
 CHANNEL_ID = _get_int("CHANNEL_ID", 0)
@@ -154,6 +161,8 @@ COLLABORATOR_IDS = _get_list_int("COLLABORATOR_IDS", COLLABORATOR_ID)
 # Lyrics API
 LRCLIB = _get_bool("LRCLIB", False)
 MUSIXMATCH = _get_bool("MUSIXMATCH", True)
+BETTERLYRICS = _get_bool("BETTERLYRICS", True)
+KUGOU = _get_bool("KUGOU", True)
 
 # Spotify
 SPOTIFY_CLIENT_ID = _get_str("SPOTIFY_CLIENT_ID")

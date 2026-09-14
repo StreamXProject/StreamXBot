@@ -7,6 +7,8 @@ from fastapi.responses import FileResponse
 
 from Api.deps.db import init_db
 from Api.utils.auth_middleware import AuthMiddleware
+from Api.routers.recaps import router as recaps_router
+from Api.routers.access import router as access_router
 from Api.routers.browse import router as browse_router
 from Api.routers.share import router as share_router
 from Api.routers.auth import router as auth_router
@@ -27,16 +29,21 @@ from Api.routers.logs import router as logs_router
 from Api.routers.yt_dlp import router as yt_dlp_router
 from Api.routers.sources import router as sources_router
 from Api.routers.topics import router as topics_router
+from Api.routers.discord import router as discord_router
 
 from stream.core.config_manager import Config
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DIST_DIR = os.path.join(BASE_DIR, "dist")
-if not os.path.exists(DIST_DIR):
-    _web_dist = os.path.join(BASE_DIR, "StreamXWeb", "dist")
-    if os.path.exists(_web_dist):
-        DIST_DIR = _web_dist
+_webx_dist = os.path.join(BASE_DIR, "WebX", "dist")
+if os.path.exists(_webx_dist):
+    DIST_DIR = _webx_dist
+else:
+    DIST_DIR = os.path.join(BASE_DIR, "dist")
+    if not os.path.exists(DIST_DIR):
+        _web_dist = os.path.join(BASE_DIR, "StreamXWeb", "dist")
+        if os.path.exists(_web_dist):
+            DIST_DIR = _web_dist
 ASSETS_DIR = os.path.join(DIST_DIR, "assets")
 
 
@@ -58,21 +65,27 @@ def _get_cors_origins():
     if not cors:
         return ["*"]
     if isinstance(cors, list):
-        return [str(c).strip() for c in cors if str(c).strip()]
+        origins = [str(c).strip() for c in cors if str(c).strip()]
+        return origins or ["*"]
     if isinstance(cors, str):
         s = cors.strip()
         if not s or s == "*":
             return ["*"]
         if "," in s:
-            return [x.strip() for x in s.split(",") if x.strip()]
+            origins = [x.strip() for x in s.split(",") if x.strip()]
+            return origins or ["*"]
         return [s]
     return ["*"]
 
 app.add_middleware(AuthMiddleware)
 
+_cors_origins = _get_cors_origins()
+_allow_all_origins = "*" in _cors_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_get_cors_origins(),
+    allow_origins=[] if _allow_all_origins else _cors_origins,
+    allow_origin_regex=r"^(https?://|capacitor://|tauri://|ionic://).*" if _allow_all_origins else None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -101,6 +114,9 @@ app.include_router(soundcloud_router)
 app.include_router(logs_router)
 app.include_router(yt_dlp_router)
 app.include_router(sources_router)
+app.include_router(discord_router)
+app.include_router(recaps_router)
+app.include_router(access_router)
 
 
 
@@ -108,7 +124,7 @@ app.include_router(sources_router)
 async def serve_root():
     index_file = os.path.join(DIST_DIR, "index.html")
     if os.path.exists(index_file):
-        return FileResponse(index_file)
+        return FileResponse(index_file, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     return {"status": "frontend not built"}
 
 
@@ -117,10 +133,12 @@ async def serve_spa(full_path: str):
     file_path = os.path.join(DIST_DIR, full_path)
 
     if os.path.exists(file_path):
+        if full_path in ("sw.js", "manifest.json"):
+            return FileResponse(file_path, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
         return FileResponse(file_path)
 
     index_file = os.path.join(DIST_DIR, "index.html")
     if os.path.exists(index_file):
-        return FileResponse(index_file)
+        return FileResponse(index_file, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     return {"status": "frontend not built"}

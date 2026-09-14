@@ -1,5 +1,7 @@
 import time
 from typing import Optional
+from pydantic import BaseModel
+from pymongo import UpdateOne
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -219,3 +221,62 @@ async def list_favourite_artist_ids(user_id: Optional[int] = Depends(get_optiona
         if aid:
             ids.append(aid)
     return {"ok": True, "ids": ids}
+
+
+class ListeningEventItem(BaseModel):
+    id: str
+    track_id: str
+    played_at: float
+    started_at: float
+    played_ms: float
+    duration_ms: float
+    completed: bool
+    skipped: bool
+    source: str = "server"
+    session_id: Optional[str] = None
+
+
+class ListeningEventsPayload(BaseModel):
+    events: list[ListeningEventItem]
+
+
+@router.post("/listening-events")
+async def record_listening_events(
+    payload: ListeningEventsPayload,
+    user_id: Optional[int] = Depends(get_optional_user_id),
+):
+    if not payload.events:
+        return {"ok": True, "count": 0}
+
+    col = db_handler.get_collection("listening_events").collection
+    ops = []
+    for ev in payload.events:
+        eid = (ev.id or "").strip()
+        if not eid:
+            continue
+        ops.append(
+            UpdateOne(
+                {"event_id": eid, "user_id": int(user_id) if user_id else None},
+                {
+                    "$setOnInsert": {"created_at": time.time()},
+                    "$set": {
+                        "event_id": eid,
+                        "user_id": int(user_id) if user_id else None,
+                        "track_id": ev.track_id,
+                        "played_at": ev.played_at,
+                        "started_at": ev.started_at,
+                        "played_ms": ev.played_ms,
+                        "duration_ms": ev.duration_ms,
+                        "completed": ev.completed,
+                        "skipped": ev.skipped,
+                        "source": ev.source,
+                        "session_id": ev.session_id,
+                    },
+                },
+                upsert=True,
+            )
+        )
+    if ops:
+        await col.bulk_write(ops, ordered=False)
+    return {"ok": True, "count": len(ops)}
+

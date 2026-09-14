@@ -467,7 +467,7 @@ async def stop_multi_clients(log=None) -> None:
 
     for cid, client in clients:
         try:
-            await client.stop()
+            await asyncio.wait_for(client.stop(), timeout=3.0)
         except Exception as e:
             log.warning(f"Multi client {cid} stop failed: {e}")
 

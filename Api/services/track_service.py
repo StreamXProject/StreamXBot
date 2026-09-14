@@ -27,15 +27,36 @@ def _clean_url(value: Any) -> str:
     return s
 
 
+def _normalize_mime_type(mime: Any) -> str | None:
+    if not mime:
+        return None
+    raw = str(mime).split(";")[0].strip().lower()
+    if raw in {"audio/flac", "audio/x-flac"} or raw.endswith("/x-flac"):
+        return "audio/flac"
+    if raw in {"audio/wav", "audio/x-wav", "audio/wave"}:
+        return "audio/wav"
+    if raw in {"audio/mp3", "audio/mpeg"}:
+        return "audio/mpeg"
+    if raw in {"audio/m4a", "audio/x-m4a", "audio/mp4"}:
+        return "audio/mp4"
+    if raw in {"audio/ogg", "application/ogg"}:
+        return "audio/ogg"
+    if raw in {"audio/aac"}:
+        return "audio/aac"
+    return str(mime).strip()
+
+
 def _normalize_spotify(doc: dict) -> None:
     spotify = doc.get("spotify")
-    if not isinstance(spotify, dict):
-        return
+    if isinstance(spotify, dict):
+        spotify["url"] = _clean_url(spotify.get("url") or spotify.get("spotify_url"))
+        spotify["cover_url"] = _clean_url(spotify.get("cover_url"))
+        spotify.pop("spotify_url", None)
+        spotify.pop("links", None)
 
-    spotify["url"] = _clean_url(spotify.get("url") or spotify.get("spotify_url"))
-    spotify["cover_url"] = _clean_url(spotify.get("cover_url"))
-    spotify.pop("spotify_url", None)
-    spotify.pop("links", None)
+    telegram = doc.get("telegram")
+    if isinstance(telegram, dict) and "mime_type" in telegram and telegram["mime_type"]:
+        telegram["mime_type"] = _normalize_mime_type(telegram["mime_type"])
 
 
 def _browse_item_from_doc(doc: dict, liked_set: set[str] | None = None) -> BrowseItem:

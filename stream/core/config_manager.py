@@ -26,6 +26,8 @@ class Config:
         "ONLY_API",
         "CORS_ORIGINS",
         "FIREBASE_CREDENTIALS",
+        "TELEGRAM_OIDC_CLIENT_SECRET",
+        "SECRET_KEY",
     }
     ONLY_API = False
     BOT_TOKEN = ""
@@ -53,13 +55,23 @@ class Config:
     DUMP_CHANNEL_ID = 0
     LRCLIB = False
     MUSIXMATCH = True
+    BETTERLYRICS = True
+    KUGOU = True
     SPOTIFY_CLIENT_ID = ""
     SPOTIFY_CLIENT_SECRET = ""
+    TELEGRAM_OIDC_CLIENT_ID = ""
+    TELEGRAM_OIDC_CLIENT_SECRET = ""
+    TELEGRAM_OIDC_REDIRECT_URI = ""
+    TELEGRAM_OIDC_ORIGIN = ""
     SOURCE_CHANNEL_IDS = []
     CHAT_TOPIC = 0
-    USERBOT_COOLDOWN_SEC = 2
+    USERBOT_COOLDOWN_SEC = 0.2
     USERBOT_POLL_INTERVAL_SEC = 300
     USERBOT_BATCH_SIZE = 50
+    USERBOT_BATCH_COOLDOWN_SEC = 1.0
+    USERBOT_DUMP_MODE = "FORWARD"
+    USERBOT_CAPTION_MODE = "LAST"
+    ENRICHMENT_WORKERS = 16
     MULTI_CLIENTS = True
     MULTI_CLIENTS_1 = ""
     MULTI_CLIENTS_2 = ""
@@ -181,6 +193,14 @@ class Config:
         elif cls.COLLABORATOR_IDS and not cls.COLLABORATOR_ID:
             cls.COLLABORATOR_ID = cls.COLLABORATOR_IDS
         cls.MULTI_CLIENT_TOKENS = cls._collect_multi_client_tokens(ext_map)
+        if not (getattr(cls, "SECRET_KEY", "") or "").strip():
+            bot_token = (getattr(cls, "BOT_TOKEN", "") or "").strip()
+            if bot_token:
+                cls.SECRET_KEY = bot_token
+            else:
+                raise RuntimeError(
+                    "SECRET_KEY is required but not configured. Please set SECRET_KEY or BOT_TOKEN in your .env or environment."
+                )
 
     @staticmethod
     def _is_empty_value(value):
@@ -251,6 +271,8 @@ class Config:
                 await seed_from_config(cls.COLLABORATOR_ID or cls.COLLABORATOR_IDS)
             except Exception as seed_err:
                 LOGGER(__name__).warning(f"Failed to seed collaborator IDs: {seed_err}")
+        except RuntimeError:
+            raise
         except Exception as e:
             LOGGER(__name__).error(f"Config loading failed: {e}")
             raise SystemExit(1)
@@ -426,11 +448,20 @@ class Config:
     @classmethod
     def _validate_config(cls):
         """Fail fast on obv broken configs."""
+        if not (getattr(cls, "SECRET_KEY", "") or "").strip():
+            bot_token = (getattr(cls, "BOT_TOKEN", "") or "").strip()
+            if bot_token:
+                cls.SECRET_KEY = bot_token
+            else:
+                raise RuntimeError(
+                    "SECRET_KEY is required but not configured. Please set SECRET_KEY or BOT_TOKEN in your .env or environment."
+                )
+
         only_api = bool(getattr(cls, "ONLY_API", False))
         if only_api:
             missing = [
                 f
-                for f in ["MONGO_URI", "DATABASE_NAME", "SECRET_KEY"]
+                for f in ["MONGO_URI", "DATABASE_NAME"]
                 if not getattr(cls, f)
             ]
             if missing:

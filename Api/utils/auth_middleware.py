@@ -63,6 +63,7 @@ _OPTIONAL_PREFIXES: tuple[str, ...] = (
     "/channelids",
     "/covers",
     "/share",
+    "/recaps/share",
     "/library/shuffle",
     "/api/v1/library/shuffle",
 )
@@ -201,5 +202,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
                         status_code=403,
                         content={"ok": False, "detail": "user is banned"},
                     )
+                # Account lock / membership restriction / revoked session (30 s memoised per user)
+                from Api.services.access_control import AccessDenied, assert_can_use
+
+                try:
+                    await assert_can_use(int(uid), valid_payload.get("tv"))
+                except AccessDenied as denied:
+                    return JSONResponse(status_code=denied.status_code, content=denied.payload())
+                except (TypeError, ValueError):
+                    pass
 
         return await call_next(request)

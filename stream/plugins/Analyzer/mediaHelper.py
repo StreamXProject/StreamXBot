@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import base64
 import io
@@ -8,6 +10,7 @@ import subprocess
 import tempfile
 import time
 from os import path as ospath
+from typing import Any
 from urllib.parse import quote, urlparse
 
 from aiofiles import open as aiopen
@@ -326,24 +329,28 @@ def _parse_duration_seconds(value: str) -> int | None:
 
 
 def extract_audio_metadata_normalized(
-    output: str, duration_sec: int | None = None
+    output: str,
+    duration_sec: int | None = None,
+    file_size: int | None = None,
 ) -> dict:
     sections = _parse_mediainfo(output)
     general = sections.get("general", {})
     audio = sections.get("audio", {})
 
     title = _pick_best_title(general, audio)
-    album = general.get("album") or ""
-    artist = general.get("performer") or general.get("album/performer") or ""
+    album = general.get("album") or general.get("original source form/name") or ""
+    artist = (
+        general.get("performer")
+        or general.get("album/performer")
+        or general.get("director")
+        or general.get("artist")
+        or audio.get("performer")
+        or ""
+    )
     composer = general.get("composer") or ""
     label = general.get("label") or ""
     genre = general.get("genre") or ""
     recorded_date = general.get("recorded date") or ""
-
-    if duration_sec is None:
-        duration_sec = _parse_duration_seconds(
-            general.get("duration") or audio.get("duration") or ""
-        )
 
     file_type = (audio.get("format") or general.get("format") or "").lower()
     bit_depth = _parse_bit_depth(audio.get("bit depth") or "")
@@ -352,6 +359,33 @@ def extract_audio_metadata_normalized(
     )
     sampling_rate_hz = _parse_sampling_rate_hz(audio.get("sampling rate") or "")
     year = _parse_year(recorded_date)
+
+    parsed_dur = _parse_duration_seconds(
+        general.get("duration") or audio.get("duration") or ""
+    )
+    if duration_sec is None:
+        duration_sec = parsed_dur
+
+    # Check if duration_sec is suspiciously truncated due to partial chunk download
+    # (e.g. 2MB partial chunk of a large WAV file or CBR audio)
+    if file_size and file_size > 3_000_000:
+        calc_dur = None
+        if file_type in ("pcm", "wave", "wav") or (sampling_rate_hz and bit_depth):
+            sr = sampling_rate_hz or 44100
+            bd = bit_depth or 16
+            ch_str = (audio.get("channel(s)") or general.get("channel(s)") or "").lower()
+            ch = 1 if "1 channel" in ch_str else 2
+            byte_rate = (sr * ch * bd) / 8
+            if byte_rate > 0:
+                calc_dur = int(round((file_size - 44) / byte_rate))
+        if not calc_dur and bitrate_kbps and bitrate_kbps > 0:
+            calc_dur = int(round((file_size * 8) / (bitrate_kbps * 1000)))
+
+        if calc_dur and (
+            duration_sec is None
+            or (calc_dur > duration_sec and (duration_sec <= 20 or (calc_dur / max(duration_sec, 1) >= 2)))
+        ):
+            duration_sec = calc_dur
 
     return _drop_empty(
         {
@@ -540,6 +574,49 @@ async def ensure_media_dir() -> str:
         return fallback
 
 
+async def reset_media_session_for_message(client, message: Any) -> None:
+    """Safely stop and remove stale MTProto media sessions from a Pyrogram client.
+    Prevents infinite TimeoutError loops when a connection to a specific Telegram DC drops.
+    """
+    if not client:
+        return
+    try:
+        dc_id = None
+        from pyrogram.file_id import FileId
+
+        if hasattr(message, "audio") or hasattr(message, "document"):
+            media = getattr(message, "audio", None) or getattr(message, "document", None) or getattr(message, "video", None)
+            fid_str = getattr(media, "file_id", None) if media else None
+            if fid_str:
+                decoded = FileId.decode(fid_str)
+                dc_id = getattr(decoded, "dc_id", None)
+        elif isinstance(message, str):
+            decoded = FileId.decode(message)
+            dc_id = getattr(decoded, "dc_id", None)
+        elif isinstance(message, int):
+            dc_id = message
+
+        sessions = getattr(client, "media_sessions", None)
+        if isinstance(sessions, dict):
+            if dc_id and dc_id in sessions:
+                sess = sessions.pop(dc_id, None)
+                if sess:
+                    try:
+                        await sess.stop()
+                    except Exception:
+                        pass
+            elif not dc_id:
+                for d, sess in list(sessions.items()):
+                    sessions.pop(d, None)
+                    if sess:
+                        try:
+                            await sess.stop()
+                        except Exception:
+                            pass
+    except Exception:
+        pass
+
+
 async def download_partial_media(
     message: Message,
     file_path: str,
@@ -558,21 +635,27 @@ async def download_partial_media(
         async with aiopen(file_path, "wb") as f:
             written = 0
             stream_client = _stream_media_client(message)
-            async for chunk in stream_client.stream_media(
-                message,
-                limit=(max_bytes // 1_000_000) + 1,
-            ):
-                if not chunk:
-                    continue
-                remaining = max_bytes - written
-                if remaining <= 0:
-                    break
-                out = chunk[:remaining]
-                await f.write(out)
-                written += len(out)
-                if written >= max_bytes:
-                    break
-            return written
+            chunk_limit = max(1, (max_bytes + 1024 * 1024 - 1) // (1024 * 1024))
+            try:
+                async for chunk in stream_client.stream_media(
+                    message,
+                    limit=chunk_limit,
+                ):
+                    if not chunk:
+                        continue
+                    remaining = max_bytes - written
+                    if remaining <= 0:
+                        break
+                    out = chunk[:remaining]
+                    await f.write(out)
+                    written += len(out)
+                    if written >= max_bytes:
+                        break
+                return written
+            except (TimeoutError, OSError, Exception) as e:
+                if "TimeoutError" in type(e).__name__ or "GetFile" in str(e):
+                    await reset_media_session_for_message(stream_client, message)
+                raise
 
 
 async def download_message_media(
@@ -620,18 +703,30 @@ async def download_message_media(
                     if i == len(delays) - 1:
                         raise
                     await asyncio.sleep(delay)
+                except (TimeoutError, OSError, Exception) as e:
+                    if "TimeoutError" in type(e).__name__ or "GetFile" in str(e):
+                        client = _stream_media_client(message)
+                        await reset_media_session_for_message(client, message)
+                    if i == len(delays) - 1:
+                        raise
+                    await asyncio.sleep(delay)
 
     async with aiopen(file_path, "wb") as f:
         written = 0
         stream_client = _stream_media_client(message)
-        async for chunk in stream_client.stream_media(message, limit=stream_limit):
-            if not chunk:
-                break
-            remaining = max_prefix_bytes - written
-            if remaining <= 0:
-                break
-            await f.write(chunk[:remaining])
-            written += min(len(chunk), remaining)
+        try:
+            async for chunk in stream_client.stream_media(message, limit=stream_limit):
+                if not chunk:
+                    break
+                remaining = max_prefix_bytes - written
+                if remaining <= 0:
+                    break
+                await f.write(chunk[:remaining])
+                written += min(len(chunk), remaining)
+        except (TimeoutError, OSError, Exception) as e:
+            if "TimeoutError" in type(e).__name__ or "GetFile" in str(e):
+                await reset_media_session_for_message(stream_client, message)
+            raise
 
     if bool(getattr(Config, "DEBUG", False)):
         LOG.debug(
