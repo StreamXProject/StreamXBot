@@ -7,7 +7,7 @@ import subprocess
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import AsyncIterator, Optional
+from typing import Any, AsyncIterator, Optional
 from urllib.parse import quote
 
 import aiofiles
@@ -112,7 +112,7 @@ class _StreamHub:
         refreshed = False
         try:
             client_id, client = await acquire_stream_client()
-            LOG.info(f"Streaming started using client {client_id}")
+            LOG.debug(f"Streaming started using client {client_id}")
 
             while True:
                 # IMPORTANT: Ensure we have the file_id for THIS specific client
@@ -381,6 +381,44 @@ def _guess_extension(mime_type: str) -> str:
     if mt in {"audio/mp4", "audio/m4a", "audio/x-m4a"}:
         return ".m4a"
     return ".mp3"
+
+
+def _normalize_mime_type(mime_type: Any, doc: dict | None = None) -> str:
+    raw = (str(mime_type) if mime_type is not None else "").split(";")[0].strip().lower()
+    if raw in {"audio/flac", "audio/x-flac"} or raw.endswith("/x-flac"):
+        return "audio/flac"
+    if raw in {"audio/wav", "audio/x-wav", "audio/wave"}:
+        return "audio/wav"
+    if raw in {"audio/mpeg", "audio/mp3"}:
+        return "audio/mpeg"
+    if raw in {"audio/ogg", "application/ogg"}:
+        return "audio/ogg"
+    if raw in {"audio/aac"}:
+        return "audio/aac"
+    if raw in {"audio/mp4", "audio/m4a", "audio/x-m4a"}:
+        return "audio/mp4"
+
+    if doc:
+        audio = doc.get("audio") if isinstance(doc.get("audio"), dict) else {}
+        atype = str(audio.get("type") or audio.get("format") or "").lower().strip()
+        if "flac" in atype:
+            return "audio/flac"
+        if "wav" in atype:
+            return "audio/wav"
+        if "mp3" in atype or "mpeg" in atype:
+            return "audio/mpeg"
+        if "aac" in atype:
+            return "audio/aac"
+        telegram = doc.get("telegram") if isinstance(doc.get("telegram"), dict) else {}
+        fname = str(telegram.get("file_name") or "").lower().strip()
+        if fname.endswith(".flac"):
+            return "audio/flac"
+        if fname.endswith(".wav"):
+            return "audio/wav"
+        if fname.endswith(".mp3"):
+            return "audio/mpeg"
+
+    return raw or "audio/mpeg"
 
 
 def _build_download_filename(
@@ -1138,7 +1176,7 @@ async def record_user_history(user_id: int, track_id: str, played_at: float) -> 
             "played_at": float(played_at),
         }
         res = await col.insert_one(doc)
-        LOG.info(f"[userHistory] Inserted doc_id={res.inserted_id} for user_id={user_id} track_id={track_id}")
+        LOG.debug(f"[userHistory] Inserted doc_id={res.inserted_id} for user_id={user_id} track_id={track_id}")
     except Exception as e:
         LOG.error(f"[userHistory] Failed to insert for user_id={user_id} track_id={track_id}: {e}", exc_info=True)
 
@@ -1370,19 +1408,19 @@ async def _ensure_alac_decoded_file(track_id: str, doc: dict) -> str:
                 except Exception:
                     pass
 
-            LOG.info(f"[ALAC-Decode] Fetching source media for track_id={track_id}")
+            LOG.debug(f"[ALAC-Decode] Fetching source media for track_id={track_id}")
             async with aiofiles.open(temp_src, "wb") as sf:
                 async for chunk in client.stream_media(target):
                     if chunk:
                         await sf.write(chunk)
 
-            LOG.info(f"[ALAC-Decode] Transcoding {temp_src} -> {temp_flac}")
+            LOG.debug(f"[ALAC-Decode] Transcoding {temp_src} -> {temp_flac}")
             ok, err_msg = await asyncio.to_thread(_run_ffmpeg_transcode, temp_src, temp_flac)
             if not ok or not os.path.isfile(temp_flac) or os.path.getsize(temp_flac) <= 10240:
                 raise RuntimeError(f"FFmpeg transcode failed: {err_msg[:300]}")
 
             os.replace(temp_flac, target_file)
-            LOG.info(
+            LOG.debug(
                 f"[ALAC-Decode] Transcode completed successfully: {target_file} ({os.path.getsize(target_file)} bytes)"
             )
             _prune_alac_cache_if_needed()
@@ -1429,7 +1467,7 @@ async def stream_track(track_id: str, request: Request):
 
     playback_chat_id, playback_message_id = _playback_source_ids(doc)
 
-    mime_type = (telegram.get("mime_type") or "audio/mpeg").strip() or "audio/mpeg"
+    mime_type = _normalize_mime_type(telegram.get("mime_type"), doc=doc)
 
     file_size: Optional[int] = None
     try:
@@ -1533,7 +1571,10 @@ async def stream_track(track_id: str, request: Request):
                 else 200
             )
 
-            headers = {"Accept-Ranges": "bytes"}
+            headers = {
+                "Accept-Ranges": "bytes",
+                "Content-Type": mime_type,
+            }
             if status_code == 206 and file_size is not None and until_bytes is not None:
                 headers["Content-Range"] = f"bytes {from_bytes}-{until_bytes}/{file_size}"
                 headers["Content-Length"] = str((until_bytes - from_bytes) + 1)
@@ -1581,7 +1622,10 @@ async def stream_track(track_id: str, request: Request):
         else 200
     )
 
-    headers = {"Accept-Ranges": "bytes"}
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Type": mime_type,
+    }
     if status_code == 206 and file_size is not None and until_bytes is not None:
         headers["Content-Range"] = f"bytes {from_bytes}-{until_bytes}/{file_size}"
         if (request.method or "").upper() == "HEAD":
@@ -1790,7 +1834,7 @@ async def download_track(track_id: str, request: Request):
     if file_size is not None and int(file_size) <= 0:
         file_size = None
 
-    mime_type = (telegram.get("mime_type") or "audio/mpeg").strip() or "audio/mpeg"
+    mime_type = _normalize_mime_type(telegram.get("mime_type"), doc=doc)
     filename = _build_download_filename(
         track_id=track_id, audio=audio, telegram=telegram, mime_type=mime_type
     )
@@ -1848,6 +1892,7 @@ async def download_track(track_id: str, request: Request):
             cd = _content_disposition(filename)
             headers = {
                 "Accept-Ranges": "bytes",
+                "Content-Type": mime_type,
                 "Content-Disposition": cd,
             }
             if status_code == 206 and file_size is not None and until_bytes is not None:
@@ -1890,6 +1935,7 @@ async def download_track(track_id: str, request: Request):
 
     headers = {
         "Accept-Ranges": "bytes",
+        "Content-Type": mime_type,
         "Content-Disposition": _content_disposition_header(
             filename=filename, track_id=track_id, mime_type=mime_type
         ),

@@ -1753,9 +1753,9 @@ async def track_warm(track_id: str):
 
 
 @router.get("/tracks/{track_id}/lyrics")
-async def track_lyrics(track_id: str, request: Request):
+async def track_lyrics(track_id: str, request: Request, provider: Optional[str] = Query(None)):
     fmt = (request.query_params.get("format") or "").strip().lower()
-    res = await get_track_lyrics(track_id)
+    res = await get_track_lyrics(track_id, provider=provider)
     want_json = fmt == "json"
     if not want_json:
         if isinstance(res, dict) and res.get("ok") and isinstance(res.get("lyrics"), str):

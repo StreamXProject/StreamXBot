@@ -84,6 +84,72 @@ def _lrc_timestamp(total_seconds: float) -> str:
     return f"[{mm:02d}:{ss:02d}.{hh:02d}]"
 
 
+def _word_timestamp(total_seconds: float) -> str:
+    try:
+        t = float(total_seconds)
+    except Exception:
+        t = 0.0
+    if t < 0:
+        t = 0.0
+    mm = int(t // 60)
+    sec_f = t - (mm * 60)
+    ss = int(sec_f // 1)
+    hh = int(round((sec_f - ss) * 100))
+    if hh >= 100:
+        hh = 0
+        ss += 1
+    if ss >= 60:
+        ss = 0
+        mm += 1
+    return f"<{mm:02d}:{ss:02d}.{hh:02d}>"
+
+
+def _richsync_json_to_lrc(richsync_body: str) -> str | None:
+    s = (richsync_body or "").strip()
+    if not s:
+        return None
+    try:
+        items = json.loads(s) if isinstance(s, str) else s
+    except Exception:
+        return None
+    if not isinstance(items, list) or not items:
+        return None
+    out: list[str] = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        line_text = (it.get("x") or "").strip()
+        words = it.get("l")
+        ts_val = it.get("ts")
+        try:
+            line_ts = float(ts_val) if ts_val is not None else 0.0
+        except Exception:
+            line_ts = 0.0
+        if not line_text and not words:
+            continue
+        line_tag = _lrc_timestamp(line_ts)
+        if isinstance(words, list) and words:
+            parts = [line_tag]
+            for w in words:
+                if not isinstance(w, dict):
+                    continue
+                c = w.get("c") or ""
+                offset = w.get("o")
+                try:
+                    word_offset = float(offset) if offset is not None else 0.0
+                except Exception:
+                    word_offset = 0.0
+                if not c.strip():
+                    parts.append(c)
+                else:
+                    parts.append(f"{_word_timestamp(line_ts + word_offset)}{c}")
+            out.append("".join(parts).rstrip())
+        else:
+            out.append(f"{line_tag} {line_text}".rstrip())
+    joined = "\n".join(out).strip()
+    return joined or None
+
+
 def _subtitles_json_to_lrc(subtitle_body: str) -> str | None:
     s = (subtitle_body or "").strip()
     if not s:
@@ -136,6 +202,16 @@ def _extract_plain_lyrics(payload: Any) -> str | None:
 def _extract_synced_subtitles(payload: Any) -> str | None:
     try:
         macro = (((payload or {}).get("message") or {}).get("body") or {}).get("macro_calls") or {}
+        # 1. Check for richsync in macro if returned
+        rich = macro.get("track.richsync.get") or {}
+        rich_body = ((rich.get("message") or {}).get("body") or {}).get("richsync") or {}
+        rich_text = (rich_body.get("richsync_body") or "").strip()
+        if rich_text:
+            parsed_rich = _richsync_json_to_lrc(rich_text)
+            if parsed_rich:
+                return parsed_rich
+
+        # 2. Check standard subtitles
         sub = macro.get("track.subtitles.get") or {}
         body = ((sub.get("message") or {}).get("body") or {})
         subtitle_list = body.get("subtitle_list") or []
@@ -258,6 +334,35 @@ async def fetch_track_lyrics_from_musixmatch(*, track: dict) -> dict:
             "spotify_track_id": spotify_track_id,
             **({"musixmatch": debug_payload} if debug_payload is not None else {}),
         }
+
+    # Try fetching richsync for word-level sync if track_id was matched
+    try:
+        macro = (((payload or {}).get("message") or {}).get("body") or {}).get("macro_calls") or {}
+        track_info = (((macro.get("matcher.track.get") or {}).get("message") or {}).get("body") or {}).get("track") or {}
+        mxm_track_id = track_info.get("track_id")
+        current_token = params.get("usertoken")
+        if mxm_track_id and current_token:
+            r_status, r_payload = await asyncio.to_thread(
+                _sync_get_json,
+                url=f"{_BASE_URL}/track.richsync.get",
+                params={"app_id": _APP_ID, "usertoken": current_token, "track_id": mxm_track_id},
+            )
+            if r_status == 200:
+                r_body = (((r_payload or {}).get("message") or {}).get("body") or {}).get("richsync") or {}
+                r_text = (r_body.get("richsync_body") or "").strip()
+                if r_text:
+                    parsed_rich = _richsync_json_to_lrc(r_text)
+                    if parsed_rich:
+                        return {
+                            "ok": True,
+                            "lyrics": parsed_rich,
+                            "kind": "richsync",
+                            "source": "musixmatch",
+                            "spotify_track_id": spotify_track_id,
+                            **({"musixmatch": debug_payload} if debug_payload is not None else {}),
+                        }
+    except Exception:
+        pass
 
     synced = _extract_synced_subtitles(payload)
     if synced:

@@ -2,6 +2,7 @@ import asyncio
 import json
 import re
 import time
+from typing import Any
 import unicodedata
 from os import path as ospath
 
@@ -58,18 +59,21 @@ async def _mark_enrichment_retry(
 
 
 async def _fetch_message(chat_id: int, message_id: int) -> Message | None:
-    try:
-        msg = await bot.get_messages(chat_id, message_id)
-        if msg and not getattr(msg, "empty", False):
-            return msg
-    except Exception:
-        pass
-
     from stream.plugins.userBot.service import _USERBOT_INSTANCE
+    channel_id = _coerce_int(getattr(Config, "CHANNEL_ID", None))
 
+    clients = [bot]
     if _USERBOT_INSTANCE:
+        if chat_id != channel_id:
+            clients = [_USERBOT_INSTANCE, bot]
+        else:
+            clients = [bot, _USERBOT_INSTANCE]
+
+    for c in clients:
+        if not c:
+            continue
         try:
-            msg = await _USERBOT_INSTANCE.get_messages(chat_id, message_id)
+            msg = await c.get_messages(chat_id, message_id)
             if msg and not getattr(msg, "empty", False):
                 return msg
         except Exception:
@@ -83,21 +87,32 @@ async def _enrichment_loop(worker_id: int):
         try:
             col = db_handler.audio_collection.collection
             now = time.time()
+            stale_threshold = now - 300
             doc = await col.find_one_and_update(
                 {
                     "enriched": False,
-                    "enriching": {"$ne": True},
                     "deleted": {"$ne": True},
-                    "$or": [
-                        {"enrich_retry_after": {"$exists": False}},
-                        {"enrich_retry_after": {"$lte": now}},
+                    "$and": [
+                        {
+                            "$or": [
+                                {"enriching": {"$ne": True}},
+                                {"enrichment_started_at": {"$lt": stale_threshold}},
+                                {"enrichment_started_at": {"$exists": False}},
+                            ]
+                        },
+                        {
+                            "$or": [
+                                {"enrich_retry_after": {"$exists": False}},
+                                {"enrich_retry_after": {"$lte": now}},
+                            ]
+                        },
                     ],
                 },
                 {"$set": {"enriching": True, "enrichment_started_at": now}},
                 sort=[("source_message_id", -1)],
             )
             if not doc:
-                await asyncio.sleep(5)
+                await asyncio.sleep(2)
                 continue
 
             source_chat_id = doc.get("source_chat_id")
@@ -138,7 +153,7 @@ async def _enrichment_loop(worker_id: int):
             break
         except Exception as e:
             LOG.error(f"Enrichment worker {worker_id} error: {e}")
-            await asyncio.sleep(5)
+            await asyncio.sleep(2)
 
 
 def start_enrichment_workers():
@@ -147,20 +162,25 @@ def start_enrichment_workers():
         LOG.info(f"Enrichment workers already running: {len(_ENRICH_WORKERS)}")
         return
 
-    workers = int(getattr(Config, "PROCESSING_CONTENT", 4))
+    workers = int(getattr(Config, "ENRICHMENT_WORKERS", getattr(Config, "PROCESSING_CONTENT", 16)))
     if workers <= 0:
-        workers = 4
+        workers = 16
     for i in range(workers):
         task = asyncio.create_task(_enrichment_loop(i))
         _ENRICH_WORKERS.append(task)
     LOG.info(f"Started {workers} enrichment workers.")
 
 
-async def stop_enrichment_workers():
+async def stop_enrichment_workers(timeout: float = 3.0):
     for task in _ENRICH_WORKERS:
         task.cancel()
     if _ENRICH_WORKERS:
-        await asyncio.gather(*_ENRICH_WORKERS, return_exceptions=True)
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*_ENRICH_WORKERS, return_exceptions=True), timeout=timeout
+            )
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            pass
     _ENRICH_WORKERS.clear()
 
 
@@ -311,14 +331,29 @@ def _dbg(msg: str) -> None:
         LOG.debug(msg)
 
 
+_AUDIO_EXTENSIONS = (
+    ".mp3",
+    ".flac",
+    ".wav",
+    ".wave",
+    ".m4a",
+    ".aac",
+    ".ogg",
+    ".opus",
+    ".alac",
+    ".aif",
+    ".aiff",
+    ".wma",
+)
+
+
 def _pick_audio_media(message: Message):
     media = message.audio
-    if (
-        not media
-        and message.document
-        and (message.document.mime_type or "").startswith("audio/")
-    ):
-        media = message.document
+    if not media and message.document:
+        mime = (message.document.mime_type or "").lower()
+        fname = (message.document.file_name or "").lower()
+        if mime.startswith("audio/") or fname.endswith(_AUDIO_EXTENSIONS):
+            media = message.document
     if not media:
         return None
     return media
@@ -331,6 +366,39 @@ def _coerce_int(value):
         return int(value)
     except Exception:
         return None
+
+
+def _normalize_mime_type(mime: Any, file_name: str | None = None) -> str | None:
+    if file_name:
+        fn = file_name.lower().strip()
+        if fn.endswith((".wav", ".wave")):
+            return "audio/wav"
+        if fn.endswith(".flac"):
+            return "audio/flac"
+        if fn.endswith(".mp3"):
+            return "audio/mpeg"
+        if fn.endswith(".m4a"):
+            return "audio/mp4"
+        if fn.endswith((".ogg", ".opus")):
+            return "audio/ogg"
+        if fn.endswith(".aac"):
+            return "audio/aac"
+    if not mime:
+        return None
+    raw = str(mime).split(";")[0].strip().lower()
+    if raw in {"audio/flac", "audio/x-flac"} or raw.endswith("/x-flac"):
+        return "audio/flac"
+    if raw in {"audio/wav", "audio/x-wav", "audio/wave"}:
+        return "audio/wav"
+    if raw in {"audio/mp3", "audio/mpeg"}:
+        return "audio/mpeg"
+    if raw in {"audio/m4a", "audio/x-m4a", "audio/mp4"}:
+        return "audio/mp4"
+    if raw in {"audio/ogg", "application/ogg"}:
+        return "audio/ogg"
+    if raw in {"audio/aac"}:
+        return "audio/aac"
+    return str(mime).strip()
 
 
 _META_KEYS = {"source_chat_id", "source_message_id", "topic_id", "topic_name"}
@@ -358,20 +426,208 @@ def _parse_meta_caption(caption) -> dict:
     return meta
 
 
-def _source_metadata_from_message(message: Message) -> dict:
+_FORWARD_TOPIC_CACHE: dict[tuple[int, int], tuple[int, str]] = {}
+
+
+async def register_forward_topics(
+    source_chat_id: int | str,
+    message_ids: list[int],
+    topic_id: int,
+    topic_name: str,
+) -> None:
+    """Register topic mapping for forwarded messages so audioIndex can resolve forum topic metadata."""
+    t_id = int(topic_id)
+    t_name = str(topic_name or "").strip() or ("main" if t_id == 0 else f"topic_{t_id}")
+    try:
+        s_cid = int(source_chat_id)
+    except Exception:
+        s_cid = 0
+
+    for mid in message_ids:
+        _FORWARD_TOPIC_CACHE[(s_cid, int(mid))] = (t_id, t_name)
+
+    if len(_FORWARD_TOPIC_CACHE) > 20000:
+        keys_to_remove = list(_FORWARD_TOPIC_CACHE.keys())[:5000]
+        for k in keys_to_remove:
+            _FORWARD_TOPIC_CACHE.pop(k, None)
+
+    try:
+        col = db_handler.get_collection("forward_topics").collection
+        now = time.time()
+        docs = [
+            {
+                "_id": f"{s_cid}:{int(mid)}",
+                "source_chat_id": s_cid,
+                "source_message_id": int(mid),
+                "topic_id": t_id,
+                "topic_name": t_name,
+                "created_at": now,
+            }
+            for mid in message_ids
+        ]
+        if docs:
+            from pymongo import UpdateOne
+
+            ops = [
+                UpdateOne({"_id": d["_id"]}, {"$set": d}, upsert=True)
+                for d in docs
+            ]
+            await col.bulk_write(ops, ordered=False)
+    except Exception:
+        pass
+
+
+_FORWARD_CACHE: dict[tuple[int, int], tuple[int, int, int, str]] = {}
+
+
+async def register_forwarded_batch(
+    cache_chat_id: int | str,
+    forwarded_pairs: list[tuple[int, int]],
+    source_chat_id: int | str,
+    topic_id: int,
+    topic_name: str,
+) -> None:
+    """Register mapping of forwarded messages in CHANNEL_ID back to their source message IDs and topic."""
+    t_id = int(topic_id)
+    t_name = str(topic_name or "").strip() or ("main" if t_id == 0 else f"topic_{t_id}")
+    try:
+        s_cid = int(source_chat_id)
+        c_cid = int(cache_chat_id)
+    except Exception:
+        return
+
+    for c_mid, s_mid in forwarded_pairs:
+        _FORWARD_CACHE[(c_cid, int(c_mid))] = (s_cid, int(s_mid), t_id, t_name)
+
+    if len(_FORWARD_CACHE) > 20000:
+        keys_to_remove = list(_FORWARD_CACHE.keys())[:5000]
+        for k in keys_to_remove:
+            _FORWARD_CACHE.pop(k, None)
+
+    try:
+        col = db_handler.get_collection("forward_cache").collection
+        now = time.time()
+        docs = [
+            {
+                "_id": f"{c_cid}:{int(c_mid)}",
+                "cache_chat_id": c_cid,
+                "cache_message_id": int(c_mid),
+                "source_chat_id": s_cid,
+                "source_message_id": int(s_mid),
+                "topic_id": t_id,
+                "topic_name": t_name,
+                "created_at": now,
+            }
+            for c_mid, s_mid in forwarded_pairs
+        ]
+        if docs:
+            from pymongo import UpdateOne
+
+            ops = [
+                UpdateOne({"_id": d["_id"]}, {"$set": d}, upsert=True)
+                for d in docs
+            ]
+            await col.bulk_write(ops, ordered=False)
+    except Exception:
+        pass
+
+
+async def _lookup_forward_cache(cache_chat_id: int | str, cache_message_id: int) -> tuple[int, int, int, str] | None:
+    try:
+        c_cid = int(cache_chat_id)
+        c_mid = int(cache_message_id)
+    except Exception:
+        return None
+
+    cached = _FORWARD_CACHE.get((c_cid, c_mid))
+    if cached:
+        return cached
+
+    try:
+        col = db_handler.get_collection("forward_cache").collection
+        doc = await col.find_one({"_id": f"{c_cid}:{c_mid}"})
+        if doc and "source_chat_id" in doc and "source_message_id" in doc:
+            res = (
+                int(doc["source_chat_id"]),
+                int(doc["source_message_id"]),
+                int(doc.get("topic_id", 0)),
+                str(doc.get("topic_name", "main")),
+            )
+            _FORWARD_CACHE[(c_cid, c_mid)] = res
+            return res
+    except Exception:
+        pass
+
+    return None
+
+
+def _lookup_forward_topic(source_chat_id: int | str, message_id: int) -> tuple[int, str] | None:
+    try:
+        s_cid = int(source_chat_id)
+        m_id = int(message_id)
+        return _FORWARD_TOPIC_CACHE.get((s_cid, m_id))
+    except Exception:
+        return None
+
+
+async def _source_metadata_from_message(message: Message) -> dict:
     meta = _parse_meta_caption(getattr(message, "caption", None))
     cache_chat_id = _coerce_int(getattr(getattr(message, "chat", None), "id", None))
     cache_message_id = _coerce_int(getattr(message, "id", None))
 
-    source_chat_id = _coerce_int(meta.get("source_chat_id")) or cache_chat_id
-    source_message_id = _coerce_int(meta.get("source_message_id")) or cache_message_id
-    topic_id = _coerce_int(meta.get("topic_id"))
+    forward_chat_id = None
+    forward_msg_id = None
+    if getattr(message, "forward_from_chat", None):
+        forward_chat_id = _coerce_int(getattr(message.forward_from_chat, "id", None))
+        forward_msg_id = _coerce_int(getattr(message, "forward_from_message_id", None))
+    elif getattr(message, "forward_origin", None):
+        orig = message.forward_origin
+        orig_chat = getattr(orig, "chat", None)
+        if orig_chat:
+            forward_chat_id = _coerce_int(getattr(orig_chat, "id", None))
+            forward_msg_id = _coerce_int(getattr(orig, "message_id", None))
+
+    # Check forward cache if message arrived without forward header or #META
+    cached_fwd = None
+    if cache_chat_id and cache_message_id:
+        cached_fwd = await _lookup_forward_cache(cache_chat_id, cache_message_id)
+        # If forwarded without name (hide_sender_name=True), forward headers are absent.
+        # Wait up to 3 seconds for register_forwarded_batch in case the Telegram message arrived
+        # before the forward_messages() RPC response completed.
+        if (
+            not cached_fwd
+            and not forward_chat_id
+            and not meta.get("source_chat_id")
+            and cache_chat_id == _coerce_int(getattr(Config, "CHANNEL_ID", None))
+        ):
+            for _ in range(30):
+                await asyncio.sleep(0.1)
+                cached_fwd = await _lookup_forward_cache(cache_chat_id, cache_message_id)
+                if cached_fwd:
+                    break
+
+    if cached_fwd:
+        f_src_chat, f_src_msg, f_topic_id, f_topic_name = cached_fwd
+        source_chat_id = _coerce_int(meta.get("source_chat_id")) or forward_chat_id or f_src_chat or cache_chat_id
+        source_message_id = _coerce_int(meta.get("source_message_id")) or forward_msg_id or f_src_msg or cache_message_id
+        topic_id = _coerce_int(meta.get("topic_id")) or f_topic_id
+        topic_name = str(meta.get("topic_name") or f_topic_name or "").strip()
+    else:
+        source_chat_id = _coerce_int(meta.get("source_chat_id")) or forward_chat_id or cache_chat_id
+        source_message_id = _coerce_int(meta.get("source_message_id")) or forward_msg_id or cache_message_id
+        topic_id = _coerce_int(meta.get("topic_id"))
+        topic_name = str(meta.get("topic_name") or "").strip()
+
+    if (not topic_id or topic_id == 0) and source_chat_id and source_message_id:
+        cached = _lookup_forward_topic(source_chat_id, source_message_id)
+        if cached:
+            topic_id, topic_name = cached
+
     if topic_id is None:
         topic_id = _coerce_int(getattr(message, "message_thread_id", None))
     if topic_id is None:
         topic_id = 0
 
-    topic_name = str(meta.get("topic_name") or "").strip()
     if not topic_name:
         topic_name = "main" if int(topic_id) == 0 else f"topic_{int(topic_id)}"
 
@@ -481,7 +737,19 @@ async def _upsert_minimal(message: Message, media, enriching: bool = False) -> s
     file_unique_id = (
         getattr(media, "file_unique_id", None) or f"{message.chat.id}:{message.id}"
     )
-    source_meta = _source_metadata_from_message(message)
+    source_meta = await _source_metadata_from_message(message)
+    if int(source_meta.get("topic_id") or 0) == 0:
+        s_cid = source_meta.get("source_chat_id")
+        s_mid = source_meta.get("source_message_id")
+        if s_cid and s_mid and s_cid != source_meta.get("cache_chat_id"):
+            try:
+                fcol = db_handler.get_collection("forward_topics").collection
+                fdoc = await fcol.find_one({"_id": f"{int(s_cid)}:{int(s_mid)}"})
+                if fdoc and fdoc.get("topic_id"):
+                    source_meta["topic_id"] = int(fdoc["topic_id"])
+                    source_meta["topic_name"] = str(fdoc.get("topic_name") or "main")
+            except Exception:
+                pass
     file_id = getattr(media, "file_id", None)
     primary_uid = get_primary_client_user_id()
     file_ids = None
@@ -504,7 +772,7 @@ async def _upsert_minimal(message: Message, media, enriching: bool = False) -> s
     payload = {
         "telegram": {
             "file_id": file_id,
-            "mime_type": getattr(media, "mime_type", None),
+            "mime_type": _normalize_mime_type(getattr(media, "mime_type", None), file_name),
             "file_size": file_size,
         },
         "audio": {
@@ -548,12 +816,64 @@ async def _upsert_minimal(message: Message, media, enriching: bool = False) -> s
     return file_unique_id
 
 
+def _get_wav_duration_from_file(file_path: str, file_size: int | None = None) -> int | None:
+    import wave
+    import io
+    import struct
+
+    try:
+        with open(file_path, "rb") as f:
+            header = f.read(65536)
+        try:
+            with wave.open(io.BytesIO(header), "rb") as w:
+                rate = w.getframerate()
+                frames = w.getnframes()
+                if rate > 0 and frames > 0:
+                    return int(round(frames / rate))
+        except Exception:
+            pass
+        if len(header) >= 44 and header[:4] == b"RIFF" and header[8:12] == b"WAVE":
+            pos = 12
+            byte_rate = None
+            data_size = None
+            while pos + 8 <= len(header):
+                chunk_id = header[pos:pos + 4]
+                chunk_size = struct.unpack("<I", header[pos + 4:pos + 8])[0]
+                if chunk_id == b"fmt " and pos + 8 + min(chunk_size, 16) <= len(header):
+                    fmt_data = header[pos + 8:pos + 24]
+                    if len(fmt_data) >= 16:
+                        _, _, _, byte_rate, _, _ = struct.unpack("<HHIIHH", fmt_data[:16])
+                elif chunk_id == b"data":
+                    data_size = chunk_size
+                pos += 8 + chunk_size
+            if byte_rate and byte_rate > 0:
+                if data_size and data_size > 0:
+                    return int(round(data_size / byte_rate))
+                if file_size and file_size > 0:
+                    return int(round((file_size - 44) / byte_rate))
+    except Exception:
+        pass
+    return None
+
+
 async def _enrich_audio_doc(
     message: Message,
     media,
     existing_doc_id: str | None = None,
 ):
-    source_meta = _source_metadata_from_message(message)
+    source_meta = await _source_metadata_from_message(message)
+    if int(source_meta.get("topic_id") or 0) == 0:
+        s_cid = source_meta.get("source_chat_id")
+        s_mid = source_meta.get("source_message_id")
+        if s_cid and s_mid and s_cid != source_meta.get("cache_chat_id"):
+            try:
+                fcol = db_handler.get_collection("forward_topics").collection
+                fdoc = await fcol.find_one({"_id": f"{int(s_cid)}:{int(s_mid)}"})
+                if fdoc and fdoc.get("topic_id"):
+                    source_meta["topic_id"] = int(fdoc["topic_id"])
+                    source_meta["topic_name"] = str(fdoc.get("topic_name") or "main")
+            except Exception:
+                pass
     media_file_unique_id = getattr(media, "file_unique_id", None)
     file_unique_id = str(
         existing_doc_id or media_file_unique_id or f"{message.chat.id}:{message.id}"
@@ -577,6 +897,7 @@ async def _enrich_audio_doc(
     file_size = getattr(media, "file_size", None)
     content_hash = None
     output = ""
+    wav_dur = None
     partial_path = file_path + ".part"
     from stream.plugins.Analyzer.mediaHelper import download_partial_media
 
@@ -584,7 +905,10 @@ async def _enrich_audio_doc(
         max_chunk = int(getattr(Config, "PARTIAL_DOWNLOAD_BYTES", 2_000_000))
         await download_partial_media(message, partial_path, max_bytes=max_chunk)
         output = await run_mediainfo(partial_path)
-        audio_doc_test = extract_audio_metadata_normalized(output, duration_sec=None)
+        wav_dur = _get_wav_duration_from_file(partial_path, file_size=file_size)
+        audio_doc_test = extract_audio_metadata_normalized(
+            output, duration_sec=wav_dur, file_size=file_size
+        )
 
         # If partial download failed to extract duration, do a full download.
         if not audio_doc_test.get("duration_sec"):
@@ -595,8 +919,9 @@ async def _enrich_audio_doc(
             if file_size_dl:
                 file_size = file_size_dl
             output = await run_mediainfo(file_path)
+            wav_dur = _get_wav_duration_from_file(file_path, file_size=file_size)
             try:
-                content_hash = sha256_prefix_file(file_path)
+                content_hash = await asyncio.to_thread(sha256_prefix_file, file_path)
             except Exception as e:
                 LOG.warning(
                     f"Hashing failed chat={message.chat.id} msg={message.id}: {e}"
@@ -604,7 +929,7 @@ async def _enrich_audio_doc(
         else:
             # We got enough info from partial download. Try hashing partial just as prefix
             try:
-                content_hash = sha256_prefix_file(partial_path)
+                content_hash = await asyncio.to_thread(sha256_prefix_file, partial_path)
             except Exception:
                 pass
 
@@ -613,6 +938,12 @@ async def _enrich_audio_doc(
             f"Indexing failed chat={message.chat.id} msg={message.id}: {e}",
             exc_info=True,
         )
+        try:
+            from stream.plugins.Analyzer.mediaHelper import reset_media_session_for_message, _stream_media_client
+            client = _stream_media_client(message)
+            await reset_media_session_for_message(client, message)
+        except Exception:
+            pass
     finally:
         for p in (file_path, partial_path):
             try:
@@ -626,9 +957,11 @@ async def _enrich_audio_doc(
         await _mark_enrichment_retry(file_unique_id, "mediainfo produced no output")
         return
 
-    duration_sec = _coerce_int(getattr(media, "duration", None))
+    duration_sec = _coerce_int(getattr(media, "duration", None)) or wav_dur
 
-    audio_doc = extract_audio_metadata_normalized(output, duration_sec=duration_sec)
+    audio_doc = extract_audio_metadata_normalized(
+        output, duration_sec=duration_sec, file_size=file_size
+    )
 
     file_name = getattr(media, "file_name", "") or ""
     inferred_performer, inferred_title = infer_artist_title(file_name)
@@ -682,17 +1015,48 @@ async def _enrich_audio_doc(
     )
 
     small_cover_url = None
-    try:
-        origin_cover_url, cover_source, small_cover_url = await find_best_cover_url(
-            title=title,
-            artist=performer,
-            album=album,
-            year=audio_doc.get("year"),
-        )
-    except Exception as e:
-        LOG.warning(f"Cover lookup failed chat={message.chat.id} msg={message.id}: {e}")
-        await _mark_enrichment_retry(file_unique_id, f"cover lookup failed: {e}")
-        raise
+
+    async def _fetch_cover():
+        try:
+            return await find_best_cover_url(
+                title=title,
+                artist=performer,
+                album=album,
+                year=audio_doc.get("year"),
+            )
+        except Exception as ce:
+            LOG.warning(f"Cover lookup failed chat={message.chat.id} msg={message.id}: {ce}")
+            return None, None, None
+
+    async def _fetch_avatar():
+        if not performer:
+            return None
+        try:
+            return await fetch_artist_avatar_info(performer)
+        except Exception as ae:
+            _dbg(f"[artist] failed to fetch artist avatar: {ae}")
+            return None
+
+    async def _fetch_spotify():
+        try:
+            return await spotify_best_track(
+                title=title,
+                artist=performer,
+                album=album,
+                year=audio_doc.get("year"),
+            )
+        except Exception as se:
+            _dbg(f"[spotify] track lookup failed: {se}")
+            return None
+
+    cover_res, art_info, sp_track = await asyncio.gather(
+        _fetch_cover(),
+        _fetch_avatar(),
+        _fetch_spotify(),
+    )
+
+    if cover_res:
+        origin_cover_url, cover_source, small_cover_url = cover_res
 
     if origin_cover_url:
         cover_url = str(origin_cover_url).strip()
@@ -706,45 +1070,39 @@ async def _enrich_audio_doc(
             f"[cover] found track={title!r} artist={performer!r} src={cover_source!r} url={origin_cover_url!r}"
         )
 
-    if performer:
-        try:
-            art_info = await fetch_artist_avatar_info(performer)
-            if art_info and art_info.get("avatar_url"):
-                spotify["artist_avatar"] = art_info.get("avatar_url")
-        except Exception as e:
-            _dbg(f"[artist] failed to fetch artist avatar: {e}")
-    if cover_source == "hoaders" and small_cover_url:
+    if art_info and art_info.get("avatar_url"):
+        spotify["artist_avatar"] = art_info.get("avatar_url")
+
+    if cover_url:
+        spotify["cover_url"] = cover_url
+        if cover_source:
+            spotify["cover_source"] = cover_source
+
+    if cover_source in {"hoaders", "youtube"} and small_cover_url:
         spotify["cover_url"] = small_cover_url
         spotify["big_cover_url"] = cover_url
     elif small_cover_url:
         spotify["small_cover_url"] = small_cover_url
-    try:
-        sp_track = await spotify_best_track(
-            title=title,
-            artist=performer,
-            album=album,
-            year=audio_doc.get("year"),
+
+    if isinstance(sp_track, dict):
+        sp_id = sp_track.get("id")
+        if isinstance(sp_id, str) and sp_id.strip():
+            spotify["track_spotify_id"] = sp_id.strip()
+        ext = (
+            sp_track.get("external_urls")
+            if isinstance(sp_track.get("external_urls"), dict)
+            else {}
         )
-        if isinstance(sp_track, dict):
-            sp_id = sp_track.get("id")
-            if isinstance(sp_id, str) and sp_id.strip():
-                spotify["track_spotify_id"] = sp_id.strip()
-            ext = (
-                sp_track.get("external_urls")
-                if isinstance(sp_track.get("external_urls"), dict)
-                else {}
-            )
-            sp_url = ext.get("spotify")
-            if isinstance(sp_url, str) and sp_url.strip():
-                s = sp_url.strip()
-                spotify["url"] = s
-    except Exception as e:
-        LOG.warning(
-            f"Spotify enrichment failed chat={message.chat.id} msg={message.id}: {e}"
-        )
-        await _mark_enrichment_retry(file_unique_id, f"spotify enrichment failed: {e}")
-        raise
+        sp_url = ext.get("spotify")
+        if isinstance(sp_url, str) and sp_url.strip():
+            s = sp_url.strip()
+            spotify["url"] = s
+
     if bool(getattr(Config, "DEBUG", False)):
+        LOG.debug(
+            f"[spotify] resolved file_unique_id={file_unique_id!r} "
+            f"track_spotify_id={spotify.get('track_spotify_id')!r} url={spotify.get('url')!r} cover_url={spotify.get('cover_url')!r}"
+        )
         LOG.debug(
             f"[spotify] resolved file_unique_id={file_unique_id!r} "
             f"track_spotify_id={spotify.get('track_spotify_id')!r} url={spotify.get('url')!r} cover_url={spotify.get('cover_url')!r}"
@@ -785,7 +1143,7 @@ async def _enrich_audio_doc(
     payload = {
         "telegram.file_id": file_id,
         "telegram.file_unique_id": media_file_unique_id,
-        "telegram.mime_type": getattr(media, "mime_type", None),
+        "telegram.mime_type": _normalize_mime_type(getattr(media, "mime_type", None), file_name),
         "telegram.file_size": file_size,
         "audio": audio_doc,
         "spotify": spotify,
@@ -945,20 +1303,12 @@ async def _enrich_audio_doc(
             if not has_lyrics:
                 from Api.services.lyrics_service import get_track_lyrics
 
-                lyrics_result = await get_track_lyrics(target_id)
-                if (
-                    isinstance(lyrics_result, dict)
-                    and lyrics_result.get("ok") is False
-                ):
-                    lyrics_error = str(lyrics_result.get("error") or "unknown")
-                    if lyrics_error not in {"no_match", "no_lyrics", "lyrics_disabled"}:
-                        raise RuntimeError(
-                            f"lyrics enrichment failed: {lyrics_error}"
-                        )
+                try:
+                    lyrics_result = await asyncio.wait_for(get_track_lyrics(target_id), timeout=5.0)
+                except Exception as le:
+                    lyrics_result = {"ok": False, "error": str(le)}
     except Exception as e:
-        LOG.error(f"[index] lyrics fetch failed for {target_id!r}: {e}", exc_info=True)
-        await _mark_enrichment_retry(target_id, str(e))
-        raise
+        LOG.warning(f"[index] lyrics fetch failed for {target_id!r}: {e}")
 
     now = time.time()
     await col.update_one(

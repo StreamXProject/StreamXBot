@@ -225,6 +225,8 @@ class MongoDatabase:
             await audio_col.create_index([("deleted", 1), ("source_chat_id", 1), ("topic_name", 1), ("updated_at", -1)], name="idx_chat_topic_browse")
             await audio_col.create_index([("topic_name", 1)], name="idx_topic_name")
             await audio_col.create_index([("topic_id", 1)], name="idx_topic_id")
+            await audio_col.create_index([("enriched", 1), ("deleted", 1), ("enriching", 1), ("enrich_retry_after", 1), ("source_message_id", -1)], name="idx_enrichment_queue")
+            await audio_col.create_index([("enriched", 1), ("deleted", 1)], name="idx_enriched_status")
         except Exception:
             pass
         try:

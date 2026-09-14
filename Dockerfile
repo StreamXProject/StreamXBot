@@ -2,11 +2,11 @@
 
 FROM node:20-alpine AS frontend-builder
 
-WORKDIR /app/StreamXWeb
+WORKDIR /app/WebX
 
-COPY StreamXWeb/package*.json ./
+COPY WebX/package*.json ./
 RUN npm install
-COPY StreamXWeb/ .
+COPY WebX/ .
 
 RUN npm run build
 
@@ -40,7 +40,7 @@ RUN /app/streamvenv/bin/pip install --no-cache-dir --upgrade pip setuptools whee
 
 COPY . .
 
-COPY --from=frontend-builder /app/StreamXWeb/dist ./dist
+COPY --from=frontend-builder /app/WebX/dist ./dist
 
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh

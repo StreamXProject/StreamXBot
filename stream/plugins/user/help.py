@@ -17,11 +17,14 @@ _MAIN_KEYBOARD = InlineKeyboardMarkup(
             InlineKeyboardButton("Sources & Filter", callback_data="help_sources"),
         ],
         [
+            InlineKeyboardButton("Access & Invites", callback_data="help_access"),
             InlineKeyboardButton("Config", callback_data="help_config_1"),
-            InlineKeyboardButton("Admin & Dev", callback_data="help_admin"),
         ],
         [
+            InlineKeyboardButton("Admin & Dev", callback_data="help_admin"),
             InlineKeyboardButton("All Commands", callback_data="help_all"),
+        ],
+        [
             InlineKeyboardButton("Close", callback_data="help_close"),
         ],
     ]
@@ -91,11 +94,23 @@ _CONFIG_KEYBOARD_3 = InlineKeyboardMarkup(
     ]
 )
 
+_ACCESS_KEYBOARD = InlineKeyboardMarkup(
+    [
+        [
+            InlineKeyboardButton("« Back", callback_data="help_main"),
+            InlineKeyboardButton("Admin & Dev", callback_data="help_admin"),
+        ],
+        [
+            InlineKeyboardButton("Close", callback_data="help_close"),
+        ],
+    ]
+)
+
 _ADMIN_KEYBOARD = InlineKeyboardMarkup(
     [
         [
             InlineKeyboardButton("« Back", callback_data="help_main"),
-            InlineKeyboardButton("General", callback_data="help_user"),
+            InlineKeyboardButton("Access & Invites", callback_data="help_access"),
         ],
         [
             InlineKeyboardButton("Close", callback_data="help_close"),
@@ -121,6 +136,7 @@ _MAIN_TEXT = (
     "Select a category below to explore commands and configuration options:\n\n"
     "• **General**: Basic user utilities, ID lookups and media inspection.\n"
     "• **Sources & Filter**: Contributor allowlists, bans and hybrid mode.\n"
+    "• **Access & Invites**: Who can sign up, invite codes, required channels & user locks.\n"
     "• **Config**: Detailed configuration variables with paging.\n"
     "• **Admin & Dev**: Dashboard, log files, updater and maintenance.\n"
     "• **All Commands**: Complete command reference cheat sheet."
@@ -158,6 +174,50 @@ _SOURCES_TEXT = (
     "  Strictly block a channel, group, or user from adding tracks and using the service (or reply to a message). Automatically removes from allowlist.\n\n"
     "• `/unban <peer>`\n"
     "  Unban a source or user (or reply to a message)."
+)
+
+_ACCESS_TEXT = (
+    "**Access & Invites**\n\n"
+    "_(For Bot Owner & Admins)_\n\n"
+    "**Sign-ups & Invites:**\n"
+    "• `/access`\n"
+    "  See your signup rules, required channels, and user counts.\n\n"
+    "• `/registration [open|invite|allowlist|closed]`\n"
+    "  Choose who gets to sign up:\n"
+    "  - `open`: Anyone can sign in with Telegram.\n"
+    "  - `invite`: Need an invite code to join.\n"
+    "  - `allowlist`: Only people you approved can join.\n"
+    "  - `closed`: Nobody new can sign up.\n\n"
+    "• `/invite [uses] [days] [note]`\n"
+    "  Make an invite code (default: 1 use, lasts 7 days).\n\n"
+    "• `/invites`\n"
+    "  See all your invite codes and who used them.\n\n"
+    "• `/allow <user_id> [note]`\n"
+    "  Let a user sign up without an invite code.\n\n"
+    "• `/disallow <user_id>`\n"
+    "  Remove someone from the approved sign-up list.\n\n"
+    "**Channel Requirements:**\n"
+    "• `/membership [on|off]`\n"
+    "  Turn the required channel check on or off.\n\n"
+    "• `/requirechat [chat_id] [public|private]`\n"
+    "  Make people join a channel or group before using the app (add `private` to hide the link on the site).\n\n"
+    "• `/unrequirechat [chat_id]`\n"
+    "  Stop requiring this channel.\n\n"
+    "• `/reverify`\n"
+    "  Check if everyone is still in the channel right now.\n\n"
+    "• `/bypass [user_id|on|off] [note]`\n"
+    "  Let someone in without joining the channel (or `/bypass on` to skip channel checks for everyone, or reply to someone).\n\n"
+    "• `/unbypass <user_id>`\n"
+    "  Make someone follow channel rules again (or reply to them).\n\n"
+    "• `/bypasses`\n"
+    "  See everyone who gets to skip channel checks.\n\n"
+    "**Managing Users:**\n"
+    "• `/lock <user_id> [reason]`\n"
+    "  Block someone from using the app and log them out everywhere.\n\n"
+    "• `/unlock <user_id>`\n"
+    "  Unblock someone and let them back in.\n\n"
+    "• `/revoke <user_id>`\n"
+    "  Log someone out of all their devices (keeps their account)."
 )
 
 _CONFIG_TEXT_1 = (
@@ -241,11 +301,28 @@ _ALL_TEXT = (
     "• `/search <query>` - Search library tracks\n"
     "• `/mediainfo`, `/mi` - Media metadata analyzer\n"
     "• `/help` - Interactive help menu\n\n"
+    "**Access & Invites:**\n"
+    "• `/access` - See access settings & stats\n"
+    "• `/registration [mode]` - Who can sign up (open/invite/allowlist/closed)\n"
+    "• `/invite [uses] [days]` - Make an invite code\n"
+    "• `/invites` - See invite codes & who used them\n"
+    "• `/allow <user_id>` - Let someone join without code\n"
+    "• `/disallow <user_id>` - Remove someone from approved list\n"
+    "• `/membership [on|off]` - Turn channel requirement on or off\n"
+    "• `/requirechat [chat_id] [pub|priv]` - Add required channel\n"
+    "• `/unrequirechat [chat_id]` - Remove required channel\n"
+    "• `/reverify` - Check if everyone is still in channel\n"
+    "• `/bypass [user_id|on|off]` - Skip channel check for a user or everyone\n"
+    "• `/unbypass <user_id>` - Remove skip for a user\n"
+    "• `/bypasses` - See who gets to skip channel checks\n"
+    "• `/lock <user_id> [reason]` - Block user & log them out\n"
+    "• `/unlock <user_id>` - Unblock user\n"
+    "• `/revoke <user_id>` - Log user out on all devices\n\n"
     "**Sources & Hybrid Filter:**\n"
     "• `/sources` - Summary & mode status\n"
     "• `/filter_mode [0|1|2]` - Switch ingestion mode\n"
-    "• `/allow <peer>` - Add allowed contributor\n"
-    "• `/disallow <peer>` - Remove allowed contributor\n"
+    "• `/allow <peer>` or `/allow_source` - Add allowed contributor\n"
+    "• `/disallow <peer>` or `/disallow_source` - Remove allowed contributor\n"
     "• `/ban <peer> [reason]` - Ban channel/group/user\n"
     "• `/unban <peer>` - Unban source/user\n\n"
     "**Admin & Maintenance:**\n"
@@ -291,6 +368,7 @@ async def help_callback_handler(_, query: CallbackQuery):
         "help_main": (_MAIN_TEXT, _MAIN_KEYBOARD),
         "help_user": (_USER_TEXT, _USER_KEYBOARD),
         "help_sources": (_SOURCES_TEXT, _SOURCES_KEYBOARD),
+        "help_access": (_ACCESS_TEXT, _ACCESS_KEYBOARD),
         "help_config_1": (_CONFIG_TEXT_1, _CONFIG_KEYBOARD_1),
         "help_config_2": (_CONFIG_TEXT_2, _CONFIG_KEYBOARD_2),
         "help_config_3": (_CONFIG_TEXT_3, _CONFIG_KEYBOARD_3),

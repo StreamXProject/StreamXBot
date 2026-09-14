@@ -20,6 +20,8 @@ _TELEGRAPH_HELPER = None
 _TELEGRAPH_INIT_LOCK = asyncio.Lock()
 
 class TelegraphHelper:
+    _cooldown_until: float = 0.0
+
     def __init__(self, author_name=None, author_url=None):
         if Telegraph is None:
             raise RuntimeError("telegraph package not installed")
@@ -28,20 +30,32 @@ class TelegraphHelper:
         self._author_url = author_url
 
     async def create_account(self):
-        LOG.info("Creating Telegraph Account")
+        if time.time() < TelegraphHelper._cooldown_until:
+            return None
+        LOG.debug("Creating Telegraph Account")
         try:
             out = await self._telegraph.create_account(
                 short_name=token_hex(5),
                 author_name=self._author_name,
                 author_url=self._author_url,
             )
-            LOG.info("Telegraph account created")
+            LOG.debug("Telegraph account created")
             return out
+        except RetryAfterError as st:
+            delay = float(getattr(st, "retry_after", 60) or 60)
+            TelegraphHelper._cooldown_until = time.time() + delay
+            LOG.warning(
+                f"Telegraph create_account flood limit exceeded. Cooling down for {int(delay)} seconds."
+            )
+            return None
         except Exception as e:
             LOG.error(f"Failed to create Telegraph Account: {e}", exc_info=True)
             raise
 
     async def create_page(self, title, content):
+        if time.time() < TelegraphHelper._cooldown_until:
+            LOG.debug("Telegraph in flood cooldown, skipping page creation")
+            return None
         try:
             out = await self._telegraph.create_page(
                 title=title,
@@ -51,16 +65,19 @@ class TelegraphHelper:
             )
             return out
         except RetryAfterError as st:
+            delay = float(getattr(st, "retry_after", 60) or 60)
+            TelegraphHelper._cooldown_until = time.time() + delay
             LOG.warning(
-                f"Telegraph Flood control exceeded. I will sleep for {st.retry_after} seconds."
+                f"Telegraph rate limit exceeded (RetryAfter {int(delay)}s). Skipping Telegraph export until cooldown expires."
             )
-            await sleep(st.retry_after)
-            return await self.create_page(title, content)
+            return None
         except Exception as e:
             LOG.error(f"Telegraph create_page failed: {e}", exc_info=True)
-            raise
+            return None
 
     async def edit_page(self, path, title, content):
+        if time.time() < TelegraphHelper._cooldown_until:
+            return None
         try:
             return await self._telegraph.edit_page(
                 path=path,
@@ -70,14 +87,15 @@ class TelegraphHelper:
                 html_content=content,
             )
         except RetryAfterError as st:
+            delay = float(getattr(st, "retry_after", 60) or 60)
+            TelegraphHelper._cooldown_until = time.time() + delay
             LOG.warning(
-                f"Telegraph Flood control exceeded. I will sleep for {st.retry_after} seconds."
+                f"Telegraph edit_page flood limit exceeded. Cooling down for {int(delay)} seconds."
             )
-            await sleep(st.retry_after)
-            return await self.edit_page(path, title, content)
+            return None
         except Exception as e:
             LOG.error(f"Telegraph edit_page failed: {e}", exc_info=True)
-            raise
+            return None
 
     async def edit_telegraph(self, path, telegraph_content):
         nxt_page = 1

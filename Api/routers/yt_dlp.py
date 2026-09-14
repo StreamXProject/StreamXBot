@@ -1,6 +1,7 @@
 import os
 import asyncio
 import time
+from typing import Any
 import uuid
 import yt_dlp
 import requests
@@ -22,15 +23,35 @@ COOKIES_PATH = os.path.join(ROOT_DIR, "cookies", "yt.txt")
 MAX_FILE_SIZE_MB = 200
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
+def _normalize_mime_type(mime: Any) -> str:
+    if not mime:
+        return "audio/mpeg"
+    raw = str(mime).split(";")[0].strip().lower()
+    if raw in {"audio/flac", "audio/x-flac"} or raw.endswith("/x-flac"):
+        return "audio/flac"
+    if raw in {"audio/wav", "audio/x-wav", "audio/wave"}:
+        return "audio/wav"
+    if raw in {"audio/mp3", "audio/mpeg"}:
+        return "audio/mpeg"
+    if raw in {"audio/m4a", "audio/x-m4a", "audio/mp4"}:
+        return "audio/mp4"
+    if raw in {"audio/ogg", "application/ogg"}:
+        return "audio/ogg"
+    if raw in {"audio/aac"}:
+        return "audio/aac"
+    return raw or "audio/mpeg"
+
+
 class YTDownloadRequest(BaseModel):
     url: str
 
 def progress_hook(d):
     """Hook to cancel download if file size exceeds limit."""
     if d['status'] == 'downloading':
-        total_size = d.get('total_bytes', 0) or d.get('fragment_count', 0) * d.get('fragment_index', 0)
-        if total_size > MAX_FILE_SIZE_BYTES:
-            raise Exception(f"File size exceeds limit of {MAX_FILE_SIZE_MB}MB")
+        downloaded = d.get('downloaded_bytes', 0)
+        total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
+        if total > MAX_FILE_SIZE_BYTES or downloaded > MAX_FILE_SIZE_BYTES:
+            raise Exception(f"File size exceeds {MAX_FILE_SIZE_MB}MB limit.")
 
 def download_thumbnail(url: str, video_id: str) -> str | None:
     """Download thumbnail and return local path for Telegram."""
@@ -193,7 +214,7 @@ async def process_yt_download(url: str, user_id: int):
             },
             "telegram": {
                 "file_id": media.file_id,
-                "mime_type": getattr(media, "mime_type", "audio/mpeg"),
+                "mime_type": _normalize_mime_type(getattr(media, "mime_type", "audio/mpeg")),
                 "file_size": media.file_size,
                 "file_ids": {
                     bot_id: media.file_id

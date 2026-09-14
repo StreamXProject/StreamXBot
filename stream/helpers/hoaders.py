@@ -5,6 +5,7 @@ import re
 from aiohttp import ClientSession
 
 from stream.core.config_manager import Config
+from stream.helpers.logger import LOGGER
 
 URL = "https://covers.musichoarders.xyz/api/search"
 
@@ -21,9 +22,11 @@ HEADERS = {
 _SEM = asyncio.Semaphore(3)
 
 
+logger = LOGGER(__name__)
+
 def _dbg(msg: str) -> None:
-    if bool(getattr(Config, "DEBUG", False)):
-        print(msg)
+    logger.debug(msg)
+
 
 
 def _parse_ndjson(text: str) -> list[dict]:
