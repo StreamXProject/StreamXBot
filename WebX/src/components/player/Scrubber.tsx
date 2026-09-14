@@ -10,8 +10,7 @@ interface ScrubberProps {
 }
 
 /**
- * Progress scrubber driven directly from the audio engine — bypasses React
- * state on every tick. Only drag/hover interactions cause re-renders.
+ * Progress scrubber driven directly from the audio engine
  */
 export const Scrubber: React.FC<ScrubberProps> = React.memo(({ showTimes = true, size = 'md', className }) => {
   const fillRef = useRef<HTMLDivElement>(null)
@@ -51,7 +50,7 @@ export const Scrubber: React.FC<ScrubberProps> = React.memo(({ showTimes = true,
     e.preventDefault()
     dragging.current = true
     setIsDragging(true)
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+      ; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     const p = pctFromEvent(e.clientX)
     paint(p, (p / 100) * durationRef.current)
   }
@@ -64,7 +63,7 @@ export const Scrubber: React.FC<ScrubberProps> = React.memo(({ showTimes = true,
     if (!dragging.current) return
     dragging.current = false
     setIsDragging(false)
-    ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+      ; (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
     audioEngine.seekPercent(pctFromEvent(e.clientX))
   }
 
@@ -118,5 +117,4 @@ export const Scrubber: React.FC<ScrubberProps> = React.memo(({ showTimes = true,
 })
 Scrubber.displayName = 'Scrubber'
 
-/** Backwards-compatible alias */
 export const IsolatedProgressBar = Scrubber

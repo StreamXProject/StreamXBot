@@ -3,10 +3,18 @@
  * without any listening history. Uses real recently-played tracks when available (so the
  * soundtrack works), otherwise the bundled demo catalog.
  */
-import { MOCK_TRACKS } from '@/api/mockData'
 import { useLibraryStore } from '@/stores/libraryStore'
 import type { Track } from '@/schemas/track'
 import type { RecapPeriodType, RecapSnapshot } from './types'
+
+const FALLBACK_TRACKS: Track[] = [
+  { id: 'recap-sample-1', title: 'Midnight City', artist: 'M83', album: "Hurry Up, We're Dreaming", duration_sec: 243, type: 'flac', sampling_rate_hz: 44100 },
+  { id: 'recap-sample-2', title: 'Starboy', artist: 'The Weeknd', album: 'Starboy', duration_sec: 230, type: 'flac', sampling_rate_hz: 44100 },
+  { id: 'recap-sample-3', title: 'Get Lucky', artist: 'Daft Punk', album: 'Random Access Memories', duration_sec: 248, type: 'flac', sampling_rate_hz: 44100 },
+  { id: 'recap-sample-4', title: 'Blinding Lights', artist: 'The Weeknd', album: 'After Hours', duration_sec: 200, type: 'flac', sampling_rate_hz: 44100 },
+  { id: 'recap-sample-5', title: 'Instant Crush', artist: 'Daft Punk', album: 'Random Access Memories', duration_sec: 337, type: 'flac', sampling_rate_hz: 44100 },
+  { id: 'recap-sample-6', title: 'Resonance', artist: 'HOME', album: 'Odyssey', duration_sec: 212, type: 'flac', sampling_rate_hz: 44100 },
+]
 
 export const DEMO_TYPE = 'demo'
 
@@ -26,7 +34,7 @@ export function buildSampleSnapshot(type: RecapPeriodType = 'monthly'): RecapSna
   const rnd = seeded(42)
 
   const recent = useLibraryStore.getState().recentTracks
-  const pool: Track[] = (recent.length >= 6 ? recent : MOCK_TRACKS).slice(0, 12)
+  const pool: Track[] = (recent.length >= 6 ? recent : FALLBACK_TRACKS).slice(0, 12)
   const plays = pool.map((_, i) => Math.max(2, Math.round(34 * Math.pow(0.72, i) + rnd() * 3)))
   const topTracks = pool.map((t, i) => ({ track: t, plays: plays[i]!, minutes: Math.round((plays[i]! * (t.duration_sec || 210)) / 60) })).sort((a, b) => b.plays - a.plays)
 

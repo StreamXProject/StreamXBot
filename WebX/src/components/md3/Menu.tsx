@@ -17,7 +17,6 @@ export interface MenuProps {
   open: boolean
   onClose: () => void
   items: MenuItem[]
-  /** Anchor element or viewport coordinates */
   anchor: HTMLElement | { x: number; y: number } | null
   align?: 'start' | 'end'
   className?: string
@@ -63,19 +62,16 @@ export const Menu: React.FC<MenuProps> = ({ open, onClose, items, anchor, align 
     }
 
     const onDown = (e: PointerEvent) => {
-      // 1. If clicked inside the menu popup itself, allow normal interaction
       if (ref.current && ref.current.contains(e.target as Node)) {
         return
       }
 
-      // 2. If clicked on the anchor element (e.g. 3-dots button), toggle closed & prevent reopening
       const currentAnchor = anchorRef.current
       if (currentAnchor instanceof HTMLElement && (currentAnchor === e.target || currentAnchor.contains(e.target as Node))) {
         e.preventDefault()
         e.stopPropagation()
         onCloseRef.current()
 
-        // Swallow the upcoming click event so the anchor's onClick doesn't immediately reopen it
         const swallowClick = (ev: MouseEvent) => {
           if (currentAnchor === ev.target || currentAnchor.contains(ev.target as Node)) {
             ev.stopPropagation()
@@ -89,7 +85,6 @@ export const Menu: React.FC<MenuProps> = ({ open, onClose, items, anchor, align 
         return
       }
 
-      // 3. Clicked outside both the menu and the anchor: dismiss menu
       onCloseRef.current()
     }
 

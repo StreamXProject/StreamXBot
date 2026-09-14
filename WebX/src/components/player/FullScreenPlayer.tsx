@@ -1,15 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, Link } from '@tanstack/react-router'
-import { ChevronDown, Heart, Mic2, ListMusic, Info, MoreHorizontal, Moon, Gauge, Download, Disc3, User, ListPlus, Share2, Radio, AudioLines, VolumeX, Volume2 } from 'lucide-react'
+import { ChevronDown, Heart, Mic2, ListMusic, Info, MoreHorizontal, Moon, Gauge, Download, Disc3, User, ListPlus, Share2, Radio, AudioLines, VolumeX, Volume2, SlidersHorizontal } from 'lucide-react'
 import { usePlayerStore } from '@/stores/playerStore'
 import { useQueueStore } from '@/stores/queueStore'
 import { useUiStore, type FullPlayerPane } from '@/stores/uiStore'
 import { useLibraryStore } from '@/stores/libraryStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { useThemeStore } from '@/theme/themeStore'
 import { Scrubber } from './Scrubber'
 import { PlaybackControls } from './PlaybackControls'
 import { VolumeControl } from './VolumeControl'
 import { LyricsView } from './LyricsView'
+import { LyricsSyncControl } from './LyricsSyncControl'
 import { QueueList } from './QueueList'
 import { Artwork } from '@/components/common/Artwork'
 import { QualityBadge } from '@/components/common/QualityBadge'
@@ -59,18 +61,10 @@ const DetailsPane: React.FC<{ track: Track }> = ({ track }) => {
   )
 }
 
-/**
- * Full-screen "Now Playing".
- *
- * Perf design:
- *  - Always mounted after the first track; open/close is a pure CSS transform
- *    on a `contain: paint` layer (no React mount/unmount storm).
- *  - The ambient backdrop blurs a 128px image, not the viewport.
- *  - Time-based UI (scrubber, lyrics) subscribes to the engine directly and
- *    re-renders only when the visible value changes.
- *  - While open, the app shell behind is made `inert` and hidden after the
- *    transition so it stops painting.
- */
+/*
+Full-screen "Now Playing".
+*/
+
 export const FullScreenPlayer: React.FC = () => {
   const open = useUiStore((s) => s.fullPlayerOpen)
   const close = useUiStore((s) => s.closeFullPlayer)
@@ -95,6 +89,7 @@ export const FullScreenPlayer: React.FC = () => {
   const toggleLike = useLibraryStore((s) => s.toggleLike)
   const dynamicColor = useThemeStore((s) => s.dynamicColor)
   const setDynamicSeedFromImage = useThemeStore((s) => s.setDynamicSeedFromImage)
+  const lyricsOffset = useSettingsStore((s) => s.lyricsSyncOffsetMs)
   const isDesktop = useIsDesktop()
   const navigate = useNavigate()
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
@@ -122,7 +117,7 @@ export const FullScreenPlayer: React.FC = () => {
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.pointerType === 'mouse') return
     drag.current = { startY: e.clientY, dy: 0, active: true }
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+      ; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     if (rootRef.current) rootRef.current.style.transition = 'none'
   }
   const onPointerMove = (e: React.PointerEvent) => {
@@ -156,11 +151,20 @@ export const FullScreenPlayer: React.FC = () => {
         setPlaybackRate(rates[(rates.indexOf(playbackRate) + 1) % rates.length] ?? 1)
       },
     },
+    {
+      id: 'sync',
+      label: `Lyrics sync · ${lyricsOffset === 0 ? '0 ms' : `${lyricsOffset > 0 ? '+' : ''}${lyricsOffset} ms`}`,
+      icon: <SlidersHorizontal />,
+      onSelect: () => {
+        if (isDesktop) setPane('lyrics')
+        else setMobilePane('lyrics')
+      },
+    },
     { id: 'd1', label: '', divider: true },
     ...(track.album_id ? [{ id: 'album', label: 'Go to album', icon: <Disc3 />, onSelect: () => { close(); navigate({ to: '/album/$albumId', params: { albumId: track.album_id! } }) } }] : []),
     ...(track.artist_id ? [{ id: 'artist', label: 'Go to artist', icon: <User />, onSelect: () => { close(); navigate({ to: '/artist/$artistId', params: { artistId: track.artist_id! } }) } }] : []),
     { id: 'download', label: 'Download', icon: <Download />, onSelect: () => window.open(getDownloadUrl(track.id), '_blank', 'noopener') },
-    ...('share' in navigator ? [{ id: 'share', label: 'Share…', icon: <Share2 />, onSelect: () => navigator.share({ title: track.title, text: `${track.title} — ${track.artist}` }).catch(() => {}) }] : []),
+    ...('share' in navigator ? [{ id: 'share', label: 'Share…', icon: <Share2 />, onSelect: () => navigator.share({ title: track.title, text: `${track.title} — ${track.artist}` }).catch(() => { }) }] : []),
   ]
 
   const showPlayer = isDesktop || mobilePane === 'player'
@@ -360,10 +364,21 @@ export const FullScreenPlayer: React.FC = () => {
         {/* Right: panes */}
         <section className={cn('min-h-0 flex flex-col', isDesktop ? 'h-[min(78vh,860px)] self-center' : 'flex-1', showPlayer && !isDesktop && 'hidden')}>
           <div className="fullplayer-panel flex-1 min-h-0 flex flex-col rounded-2xl glass border border-outline-variant/40 overflow-hidden">
-            {isDesktop && (
+            {isDesktop ? (
               <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3 shrink-0 border-b border-outline-variant/30">
                 <SegmentedButton value={pane} onChange={setPane} options={paneOptions} showCheck={false} size="sm" />
+                {activePane === 'lyrics' && <LyricsSyncControl />}
               </div>
+            ) : (
+              activePane === 'lyrics' && (
+                <div className="flex items-center justify-between gap-2 px-4 py-2 shrink-0 border-b border-outline-variant/30 bg-surface-container-low/40">
+                  <span className="type-label-sm text-on-surface-variant font-medium flex items-center gap-1.5">
+                    <SlidersHorizontal className="size-3.5 text-primary" />
+                    Sync offset
+                  </span>
+                  <LyricsSyncControl compact />
+                </div>
+              )
             )}
             {activePane === 'lyrics' && <LyricsView trackId={track.id} className="flex-1" />}
             {activePane === 'queue' && <QueueList className="flex-1 pt-2" />}

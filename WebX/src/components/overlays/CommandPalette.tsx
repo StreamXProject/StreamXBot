@@ -7,6 +7,7 @@ import { useQueueStore } from '@/stores/queueStore'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useSearch } from '@/hooks/useQueries'
 import { Artwork } from '@/components/common/Artwork'
+import { RecapIcon } from '@/components/common/RecapIcon'
 import { fetchShuffle } from '@/api/browse'
 import { fetchAlbumById } from '@/api/albums'
 import { fetchArtistById } from '@/api/artists'
@@ -67,6 +68,7 @@ export const CommandPalette: React.FC = () => {
     const base: Cmd[] = [
       { id: 'home', label: 'Home', icon: <Home />, kind: 'nav', run: () => go('/') },
       { id: 'library', label: 'Your library', icon: <Library />, kind: 'nav', run: () => go('/library') },
+      { id: 'recaps', label: 'Recaps & listening stories', icon: <RecapIcon className="size-5" />, kind: 'nav', run: () => go('/recaps') },
       { id: 'albums', label: 'Browse albums', icon: <Disc3 />, kind: 'nav', run: () => go('/explore/albums') },
       { id: 'artists', label: 'Browse artists', icon: <Users />, kind: 'nav', run: () => go('/explore/artists') },
       { id: 'settings', label: 'Settings', icon: <Settings />, kind: 'nav', run: () => go('/settings') },

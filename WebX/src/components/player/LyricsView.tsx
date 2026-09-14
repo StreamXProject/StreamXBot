@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Mic2, ExternalLink, Sparkles } from 'lucide-react'
+import { Mic2, ExternalLink } from 'lucide-react'
 import { useTrackLyrics } from '@/hooks/useQueries'
 import { useProgressStore } from '@/stores/progressStore'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -31,7 +31,6 @@ function useActiveLine(lines: LyricLine[], syncOffsetMs: number) {
   return useProgressStore((s) => (lines.length ? indexAt(lines, s.currentTime + offsetSec + 0.15) : -1))
 }
 
-/** High-precision ticking component for the single active lyric line */
 const ActiveLineRenderer: React.FC<{
   line: LyricLine
   syncOffsetMs: number
@@ -60,7 +59,6 @@ const ActiveLineRenderer: React.FC<{
     return line.spans && line.spans.length > 0 ? line.spans : estimateLineWords(line, line.duration || 3.5)
   }, [line])
 
-  // Apple Music V2: Letter-by-letter karaoke glow sweep (piTube AppleV2LetterLine)
   if (style === 'apple_music_v2') {
     return (
       <span
@@ -108,7 +106,6 @@ const ActiveLineRenderer: React.FC<{
     )
   }
 
-  // Lyrics V2 Fluid: Smooth liquid fill sweep across words (piTube LyricsV2FillLine single-layer engine)
   if (style === 'lyrics_v2_fluid') {
     return (
       <span
@@ -124,7 +121,6 @@ const ActiveLineRenderer: React.FC<{
           const isWordActive = time >= w.time && time < w.time + wDur
           const bounce = isWordActive ? Math.sin(wProg * Math.PI) * 2 : 0
 
-          // Single-layer fill: trailing-feather gradient eliminates ghost double-text artifact
           if (isPassed) {
             return (
               <span
@@ -152,7 +148,6 @@ const ActiveLineRenderer: React.FC<{
             )
           }
 
-          // Active filling word: smooth horizontal feathered gradient sweep (zero ghosting, zero background box)
           const p1 = Math.max(0, Math.round((wProg - 0.1) * 100))
           const p2 = Math.min(100, Math.round((wProg + 0.1) * 100))
 
@@ -177,35 +172,40 @@ const ActiveLineRenderer: React.FC<{
     )
   }
 
-  // Apple Music: Word-level scale & illumination with warm shadow
   if (style === 'apple_music') {
     return (
       <span
         className={cn(
-          'inline-flex flex-wrap items-baseline',
+          'inline-flex flex-wrap items-baseline font-bold',
           position === 'center' ? 'justify-center' : position === 'right' ? 'justify-end' : 'justify-start'
         )}
       >
         {words.map((w, wIdx) => {
           const wDur = w.duration || 0.35
+          const linear = Math.max(0, Math.min(1, (time - w.time) / wDur))
           const isWordActive = time >= w.time && time < w.time + wDur
           const isPassed = time >= w.time + wDur
+          const bump = isWordActive ? Math.sin(linear * Math.PI) : 0
+          const scale = isWordActive ? 1.0 + bump * 0.08 : 1.0
+          const translateY = isWordActive ? -bump * 2.5 : 0
 
           return (
             <span
               key={wIdx}
               className={cn(
-                'inline-block mr-[0.3em] last:mr-0 transition-all duration-150',
+                'font-bold inline-block mr-[0.3em] last:mr-0 transition-colors duration-150 origin-bottom select-none',
                 isWordActive
-                  ? 'text-primary scale-105 font-extrabold'
+                  ? 'text-primary opacity-100'
                   : isPassed
-                    ? 'text-on-surface opacity-100'
-                    : 'text-on-surface-variant opacity-40'
+                    ? 'text-on-surface opacity-90'
+                    : 'text-on-surface opacity-35'
               )}
               style={{
+                transform: isWordActive ? `translateY(${translateY}px) scale(${scale})` : undefined,
+                willChange: isWordActive ? 'transform' : undefined,
                 textShadow:
                   glow && isWordActive
-                    ? '0 0 20px var(--color-primary), 0 0 35px var(--color-primary-container)'
+                    ? '0 0 16px var(--color-primary), 0 0 28px var(--color-primary-container)'
                     : undefined,
               }}
             >
@@ -217,10 +217,12 @@ const ActiveLineRenderer: React.FC<{
     )
   }
 
-  // Fallback: Classic or Glow
   return (
     <span
-      className="inline-block text-on-surface font-bold"
+      className={cn(
+        'inline-block text-on-surface font-bold',
+        position === 'center' ? 'text-center' : position === 'right' ? 'text-right' : 'text-left'
+      )}
       style={{
         textShadow:
           glow || style === 'glow'
@@ -236,7 +238,6 @@ const ActiveLineRenderer: React.FC<{
 interface LyricsViewProps {
   trackId: string
   className?: string
-  /** Override size if needed */
   size?: 'md' | 'lg'
 }
 
@@ -250,7 +251,6 @@ export const LyricsView: React.FC<LyricsViewProps> = ({ trackId, className, size
   const [userScrolled, setUserScrolled] = useState(false)
   const scrollTimer = useRef<number | null>(null)
 
-  // Typography & Layout configs from settings
   const position = settings.lyricsTextPosition
   const glow = settings.lyricsGlow
   const blur = settings.lyricsBlur
@@ -267,13 +267,30 @@ export const LyricsView: React.FC<LyricsViewProps> = ({ trackId, className, size
     xl: 'text-3xl sm:text-4xl',
   }[sizeChoice]
 
+  const textAlignClass = {
+    left: 'text-left',
+    center: 'text-center',
+    right: 'text-right',
+  }[position]
+
+  const originClass = {
+    left: 'origin-left',
+    center: 'origin-center',
+    right: 'origin-right',
+  }[position]
+
+  const justifyClass = {
+    left: 'justify-start',
+    center: 'justify-center',
+    right: 'justify-end',
+  }[position]
+
   const alignClass = {
     left: 'text-left items-start',
     center: 'text-center items-center',
     right: 'text-right items-end',
   }[position]
 
-  // Auto-scroll active line to center/upper third unless user is actively scrolling
   useEffect(() => {
     if (!autoScroll || active < 0 || userScrolled || !containerRef.current) return
     const el = containerRef.current.querySelector<HTMLElement>(`[data-line="${active}"]`)
@@ -283,7 +300,6 @@ export const LyricsView: React.FC<LyricsViewProps> = ({ trackId, className, size
     c.scrollTo({ top: target, behavior: 'smooth' })
   }, [active, userScrolled, autoScroll])
 
-  // Reset scroll state on track change
   useEffect(() => {
     setUserScrolled(false)
     containerRef.current?.scrollTo({ top: 0 })
@@ -320,7 +336,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({ trackId, className, size
   if (!data.synced) {
     return (
       <div ref={containerRef} className={cn('flex-1 overflow-y-auto px-6 sm:px-10 py-8', className)}>
-        <p className={cn('whitespace-pre-wrap text-on-surface leading-relaxed font-semibold', fontSizeClass)}>
+        <p className={cn('whitespace-pre-wrap text-on-surface leading-relaxed font-semibold', fontSizeClass, textAlignClass)}>
           {data.plain}
         </p>
         {data.source && (
@@ -343,7 +359,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({ trackId, className, size
         className
       )}
     >
-      <div className={cn('flex flex-col select-none transition-all duration-300', alignClass)} style={{ gap: `${(spacing - 0.4) * 1.5}rem` }}>
+      <div className={cn('flex flex-col select-none transition-all duration-300 w-full', alignClass)} style={{ gap: `${(spacing - 0.4) * 1.5}rem` }}>
         {lines.map((line, i) => {
           const isActive = i === active
           const isPast = i < active
@@ -360,27 +376,31 @@ export const LyricsView: React.FC<LyricsViewProps> = ({ trackId, className, size
                 lineHeight: spacing,
               }}
               className={cn(
-                'rounded-2xl transition-[transform,opacity,filter] duration-300 origin-left block py-1.5 px-3 -mx-3 outline-none text-left',
+                'w-full max-w-full rounded-2xl transition-[transform,opacity,filter] duration-300 block py-1.5 px-3 outline-none',
+                textAlignClass,
+                originClass,
                 fontSizeClass,
                 seekOnClick ? 'cursor-pointer hover:opacity-90' : 'cursor-default',
                 isActive
                   ? 'opacity-100 scale-[1.03] z-10'
                   : cn(
-                      isPast ? 'opacity-35 hover:opacity-75' : 'opacity-45 hover:opacity-85',
-                      blur && 'blur-[1.5px]'
-                    )
+                    isPast ? 'opacity-35 hover:opacity-75' : 'opacity-45 hover:opacity-85',
+                    blur && 'blur-[1.5px]'
+                  )
               )}
             >
               {isActive ? (
-                <ActiveLineRenderer
-                  line={line}
-                  syncOffsetMs={settings.lyricsSyncOffsetMs}
-                  glow={glow}
-                  style={animStyle}
-                  position={position}
-                />
+                <div className={cn('w-full flex', justifyClass, textAlignClass)}>
+                  <ActiveLineRenderer
+                    line={line}
+                    syncOffsetMs={settings.lyricsSyncOffsetMs}
+                    glow={glow}
+                    style={animStyle}
+                    position={position}
+                  />
+                </div>
               ) : (
-                <span className={cn('font-semibold text-on-surface-variant transition-colors duration-200')}>
+                <span className={cn('block font-semibold text-on-surface-variant transition-colors duration-200', textAlignClass)}>
                   {line.text || '♪'}
                 </span>
               )}
@@ -388,15 +408,6 @@ export const LyricsView: React.FC<LyricsViewProps> = ({ trackId, className, size
           )
         })}
 
-        {/* Source metadata pill */}
-        {data.source && (
-          <div className="mt-8 pt-6 border-t border-outline-variant/30 flex items-center gap-2 type-label-sm text-on-surface-variant/70">
-            <Sparkles className="size-3.5 text-primary" />
-            <span>
-              Synced with <strong>{data.source}</strong> {data.kind === 'richsync' ? '(RichSync word-level)' : '(LRC timestamps)'}
-            </span>
-          </div>
-        )}
       </div>
     </div>
   )

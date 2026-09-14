@@ -87,6 +87,18 @@ function LyricsPreviewCard() {
     xl: 'text-2xl sm:text-3xl',
   }[textSize]
 
+  const textAlignClass = {
+    left: 'text-left',
+    center: 'text-center',
+    right: 'text-right',
+  }[position]
+
+  const justifyClass = {
+    left: 'justify-start',
+    center: 'justify-center',
+    right: 'justify-end',
+  }[position]
+
   const alignClass = {
     left: 'text-left items-start',
     center: 'text-center items-center',
@@ -100,7 +112,7 @@ function LyricsPreviewCard() {
         <IconButton label={playing ? 'Pause preview' : 'Play preview'} size="sm" onClick={() => setPlaying((p) => !p)} className="absolute top-2 right-2 text-on-surface-variant">
           {playing ? <Pause /> : <Play className="fill-current" />}
         </IconButton>
-        <div className={cn('flex flex-col select-none transition-all duration-300', alignClass)} style={{ gap: `${(spacing - 0.5) * 1.25}rem` }}>
+        <div className={cn('flex flex-col select-none transition-all duration-300 w-full', alignClass)} style={{ gap: `${(spacing - 0.5) * 1.25}rem` }}>
           {PREVIEW_LINES.map((l, i) => {
             const isActive = i === activeLine
             const isPast = i < activeLine
@@ -110,7 +122,8 @@ function LyricsPreviewCard() {
                 <div
                   key={i}
                   className={cn(
-                    'font-semibold transition-all duration-300 leading-snug',
+                    'font-semibold transition-all duration-300 leading-snug w-full',
+                    textAlignClass,
                     fontSizeClass,
                     isPast ? 'text-on-surface-variant/35' : 'text-on-surface-variant/45',
                     blur && 'blur-[1.5px]'
@@ -128,9 +141,10 @@ function LyricsPreviewCard() {
                 <div
                   key={i}
                   className={cn(
-                    'font-bold tracking-tight transition-all duration-300 flex flex-wrap leading-snug',
+                    'font-bold tracking-tight transition-all duration-300 flex flex-wrap leading-snug w-full',
                     fontSizeClass,
-                    position === 'center' ? 'justify-center' : position === 'right' ? 'justify-end' : 'justify-start'
+                    justifyClass,
+                    textAlignClass
                   )}
                 >
                   {words.map((word, wIdx) => {
@@ -178,9 +192,10 @@ function LyricsPreviewCard() {
                 <div
                   key={i}
                   className={cn(
-                    'font-bold tracking-tight transition-all duration-300 flex flex-wrap leading-snug',
+                    'font-bold tracking-tight transition-all duration-300 flex flex-wrap leading-snug w-full',
                     fontSizeClass,
-                    position === 'center' ? 'justify-center' : position === 'right' ? 'justify-end' : 'justify-start'
+                    justifyClass,
+                    textAlignClass
                   )}
                 >
                   {words.map((word, wIdx) => {
@@ -243,36 +258,46 @@ function LyricsPreviewCard() {
               )
             }
 
-            // Apple Music: Word-level smoothstep scale & illumination
+            // Apple Music: Word-level smooth scale bump & illumination
             if (animStyle === 'apple_music') {
-              const wordIdx = Math.floor(lineProgress * words.length)
               return (
                 <div
                   key={i}
                   className={cn(
-                    'font-bold tracking-tight transition-all duration-300 flex flex-wrap leading-snug',
+                    'font-bold tracking-tight transition-all duration-300 flex flex-wrap leading-snug w-full',
                     fontSizeClass,
-                    position === 'center' ? 'justify-center' : position === 'right' ? 'justify-end' : 'justify-start'
+                    justifyClass,
+                    textAlignClass
                   )}
                 >
                   {words.map((word, wIdx) => {
-                    const isWordPassed = wIdx < wordIdx
-                    const isWordActive = wIdx === wordIdx
+                    const wordStart = wIdx / words.length
+                    const wordEnd = (wIdx + 1) / words.length
+                    const wProg = Math.max(0, Math.min(1, (lineProgress - wordStart) / (wordEnd - wordStart)))
+                    const isPassed = lineProgress >= wordEnd
+                    const isWordActive = lineProgress >= wordStart && lineProgress < wordEnd
+
+                    const bump = isWordActive ? Math.sin(wProg * Math.PI) : 0
+                    const scale = isWordActive ? 1.0 + bump * 0.08 : 1.0
+                    const translateY = isWordActive ? -bump * 2.5 : 0
+
                     return (
                       <span
                         key={wIdx}
                         className={cn(
-                          'inline-block mr-[0.3em] last:mr-0 transition-all duration-150',
+                          'font-bold inline-block mr-[0.3em] last:mr-0 transition-colors duration-150 origin-bottom select-none',
                           isWordActive
-                            ? 'text-primary scale-105 font-extrabold'
-                            : isWordPassed
-                              ? 'text-on-surface opacity-100'
-                              : 'text-on-surface-variant opacity-40'
+                            ? 'text-primary opacity-100'
+                            : isPassed
+                              ? 'text-on-surface opacity-90'
+                              : 'text-on-surface opacity-35'
                         )}
                         style={{
+                          transform: isWordActive ? `translateY(${translateY}px) scale(${scale})` : undefined,
+                          willChange: isWordActive ? 'transform' : undefined,
                           textShadow:
                             glow && isWordActive
-                              ? '0 0 20px var(--color-primary), 0 0 35px var(--color-primary-container)'
+                              ? '0 0 16px var(--color-primary), 0 0 28px var(--color-primary-container)'
                               : undefined,
                         }}
                       >
@@ -289,8 +314,9 @@ function LyricsPreviewCard() {
               <div
                 key={i}
                 className={cn(
-                  'font-bold tracking-tight text-on-surface transition-all duration-300 scale-[1.02] leading-snug',
-                  fontSizeClass
+                  'font-bold tracking-tight text-on-surface transition-all duration-300 scale-[1.02] leading-snug w-full',
+                  fontSizeClass,
+                  textAlignClass
                 )}
                 style={{
                   textShadow:

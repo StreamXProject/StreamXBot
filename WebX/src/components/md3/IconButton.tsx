@@ -7,7 +7,6 @@ export type IconButtonSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 export interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: IconButtonVariant
   size?: IconButtonSize
-  /** Toggle state; when defined the button is a toggle */
   selected?: boolean
   label: string
 }

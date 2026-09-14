@@ -3,13 +3,8 @@ import { http } from './client'
 import { BrowseResponseSchema, type BrowseResponse } from '@/schemas/browse'
 import { parseTracks, type Track } from '@/schemas/track'
 import { AvailablePlaylistSchema, type AvailablePlaylist } from '@/schemas/playlist'
-import { useSettingsStore } from '@/stores/settingsStore'
-import { MOCK_TRACKS, MOCK_MIXES } from './mockData'
-
-const demo = () => useSettingsStore.getState().demoMode
 
 export async function fetchBrowseTracks(page = 1, perPage = 50, signal?: AbortSignal): Promise<BrowseResponse> {
-  if (demo()) return { page: 1, per_page: perPage, total: MOCK_TRACKS.length, items: MOCK_TRACKS, cover_url: null }
   const raw = await http.get<unknown>(API_ENDPOINTS.BROWSE, { signal, params: { page, per_page: perPage, limit: perPage } })
   return BrowseResponseSchema.parse(raw)
 }
@@ -25,7 +20,6 @@ const MIX_SUBTITLES: Record<string, string> = {
 }
 
 export async function fetchFeaturedMixes(signal?: AbortSignal): Promise<FeaturedMix[]> {
-  if (demo()) return MOCK_MIXES
   const raw = await http.get<{ items?: unknown[] } | unknown[]>(API_ENDPOINTS.PLAYLISTS_AVAILABLE, { signal })
   const items = Array.isArray(raw) ? raw : raw?.items ?? []
   return items
@@ -39,7 +33,6 @@ export async function fetchFeaturedMixes(signal?: AbortSignal): Promise<Featured
 
 /** Load tracks for any curated endpoint (`/daily-playlist/random`, `/me/top-played`, …) */
 export async function fetchMixTracks(endpointOrKey: string, signal?: AbortSignal): Promise<Track[]> {
-  if (demo()) return [...MOCK_TRACKS].sort(() => 0.5 - Math.random())
   const path = endpointOrKey.startsWith('/') ? endpointOrKey : API_ENDPOINTS.DAILY_PLAYLIST(endpointOrKey.replace(/^daily:/, ''))
   const raw = await http.get<{ items?: unknown[] } | unknown[]>(path, { signal, params: { limit: 75 } })
   return parseTracks(Array.isArray(raw) ? raw : raw?.items)
@@ -48,14 +41,12 @@ export async function fetchMixTracks(endpointOrKey: string, signal?: AbortSignal
 export const fetchDailyPlaylistTracks = fetchMixTracks
 
 export async function fetchShuffle(limit = 100, opts?: { lossless?: boolean; artist?: string; genre?: string }, signal?: AbortSignal): Promise<Track[]> {
-  if (demo()) return [...MOCK_TRACKS].sort(() => 0.5 - Math.random()).slice(0, limit)
   const raw = await http.get<{ items?: unknown[] }>(API_ENDPOINTS.TRACKS_SHUFFLE, { signal, params: { limit, ...opts }, noDedupe: true })
   return parseTracks(raw?.items)
 }
 
 export interface Topic { name: string; count?: number }
 export async function fetchTopics(signal?: AbortSignal): Promise<Topic[]> {
-  if (demo()) return []
   const raw = await http.get<{ items?: unknown[] } | unknown[]>(API_ENDPOINTS.TOPICS, { signal })
   const items = Array.isArray(raw) ? raw : raw?.items ?? []
   return items

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Play, Shuffle, Clock, Flame, Sparkles, ChevronRight } from 'lucide-react'
+import { Play, Shuffle, Clock, Flame, ChevronRight } from 'lucide-react'
+import { RecapIcon } from '@/components/common/RecapIcon'
 import { useBrowseTracks, useFeaturedMixes, useAlbums, useArtists, useHistory } from '@/hooks/useQueries'
 import { useQueueStore } from '@/stores/queueStore'
 import { useAuthStore, sessionKind } from '@/stores/authStore'
@@ -142,7 +143,7 @@ function HomePage() {
             onClick={() => navigate({ to: '/recap/$type/$period', params: { type: featuredRecap.type, period: featuredRecap.period } })}
             className="state-layer group w-full text-left rounded-2xl bg-primary-container text-on-primary-container p-5 flex items-center gap-4"
           >
-            <span className="size-12 rounded-xl bg-on-primary-container/15 flex items-center justify-center shrink-0"><Sparkles className="size-6" /></span>
+            <span className="size-12 rounded-xl bg-on-primary-container/15 flex items-center justify-center shrink-0"><RecapIcon className="size-6" /></span>
             <span className="min-w-0 flex-1">
               <span className="block type-label-lg opacity-80">Your {featuredRecap.type} recap{featuredRecap.ongoing ? ' so far' : ' is ready'}</span>
               <span className="block type-headline-sm truncate">{featuredRecap.label}</span>

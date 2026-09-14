@@ -16,7 +16,6 @@ interface VirtualTrackListProps {
   emptyAction?: React.ReactNode
   header?: React.ReactNode
   context?: QueueContext
-  /** Use the page's scroll container instead of an internal one */
   useWindowScroll?: boolean
   trailing?: (track: Track, index: number) => React.ReactNode
   className?: string

@@ -26,7 +26,6 @@ export const CollectionHeader: React.FC<CollectionHeaderProps> = ({ kind, eyebro
   const isArtist = kind === 'artist'
   return (
     <header className="relative">
-      {/* soft tinted band behind the header */}
       <div className="absolute inset-x-0 top-0 h-64 -z-10 bg-gradient-to-b from-primary-container/20 to-transparent pointer-events-none" />
       <div className="flex flex-col sm:flex-row sm:items-end gap-6 pt-2 pb-6">
         <Artwork

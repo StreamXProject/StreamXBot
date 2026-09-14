@@ -25,7 +25,6 @@ import { audioEngine } from '@/audio/AudioEngine'
 import '@/theme/themeStore'
 
 const PUBLIC_ROUTES = ['/login', '/signup', '/setup', '/recap/share']
-/** Routes that own the whole viewport (no rail / top bar / player) */
 const IMMERSIVE_ROUTES = ['/recap/']
 
 export const AppShell: React.FC = () => {
@@ -38,11 +37,11 @@ export const AppShell: React.FC = () => {
   useEffect(() => {
     const isWebKitTouch = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/i.test(navigator.userAgent)))
     if (isWebKitTouch) {
-      ;(document.body.style as CSSStyleDeclaration & { zoom?: string }).zoom = ''
+      ; (document.body.style as CSSStyleDeclaration & { zoom?: string }).zoom = ''
       return
     }
     const z = Math.min(1.3, Math.max(0.8, Number(uiScale) || 1))
-    ;(document.body.style as CSSStyleDeclaration & { zoom?: string }).zoom = z === 1 ? '' : String(z)
+      ; (document.body.style as CSSStyleDeclaration & { zoom?: string }).zoom = z === 1 ? '' : String(z)
   }, [uiScale])
 
   // Disable browser zoom (ctrl/cmd + wheel, ctrl/cmd + -/=/0, pinch) — interface size is controlled in Appearance
@@ -76,7 +75,6 @@ export const AppShell: React.FC = () => {
   const isPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r)) || pathname.startsWith('/share')
   const isImmersive = !isPublic && IMMERSIVE_ROUTES.some((r) => pathname.startsWith(r))
 
-  // Auth gate
   useEffect(() => {
     if (!token && !isPublic) navigate({ to: '/login', replace: true })
   }, [token, isPublic, navigate])
@@ -95,7 +93,6 @@ export const AppShell: React.FC = () => {
     }
   }, [me?.user?.integrations])
 
-  // One-time boot: sync library, restore queue, record history, surface playback errors
   useEffect(() => {
     if (booted.current || !token) return
     booted.current = true
@@ -117,7 +114,6 @@ export const AppShell: React.FC = () => {
     }
   }, [token])
 
-  // Remember scroll position per route; restore it when coming back, otherwise start at top
   const scrollPositions = useRef<Map<string, number>>(new Map())
   useEffect(() => {
     const el = scrollRef.current
@@ -127,7 +123,7 @@ export const AppShell: React.FC = () => {
       el.scrollTo({ top: 0 })
       return
     }
-    // Content may still be loading — retry for a short while until the page is tall enough
+
     let raf = 0
     let tries = 0
     const attempt = () => {
@@ -141,7 +137,6 @@ export const AppShell: React.FC = () => {
     return () => cancelAnimationFrame(raf)
   }, [pathname])
 
-  // Keep the saved position fresh while the user scrolls
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -152,7 +147,6 @@ export const AppShell: React.FC = () => {
     return () => el.removeEventListener('scroll', onScroll)
   }, [pathname])
 
-  // Stop painting the shell while the full player covers it
   const shellRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = shellRef.current
@@ -192,7 +186,7 @@ export const AppShell: React.FC = () => {
       <div
         ref={shellRef}
         className="flex-1 min-h-0 flex flex-col"
-        // @ts-expect-error React 19 supports inert
+        // @ts-expect-error
         inert={fullPlayerOpen ? '' : undefined}
       >
         <div className="flex-1 min-h-0 flex">

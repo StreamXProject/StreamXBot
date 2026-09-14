@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Home, Search, Library, Disc3, Users, Settings, Plus, PanelLeftClose, PanelLeftOpen, ListMusic, Heart, Music2, Sparkles } from 'lucide-react'
+import { Home, Search, Library, Disc3, Users, Settings, Plus, PanelLeftClose, PanelLeftOpen, ListMusic, Heart, Music2 } from 'lucide-react'
+import { RecapIcon } from '@/components/common/RecapIcon'
 import { useUiStore } from '@/stores/uiStore'
 import { useLibraryStore } from '@/stores/libraryStore'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -20,7 +21,7 @@ const PRIMARY: NavItem[] = [
   { label: 'Home', to: '/', icon: Home, match: (p) => p === '/' || p.startsWith('/mix') },
   { label: 'Search', to: '/search', icon: Search },
   { label: 'Library', to: '/library', icon: Library, match: (p) => p.startsWith('/library') || p.startsWith('/playlist') },
-  { label: 'Recaps', to: '/recaps', icon: Sparkles, match: (p) => p.startsWith('/recap') },
+  { label: 'Recaps', to: '/recaps', icon: RecapIcon, match: (p) => p.startsWith('/recap') },
 ]
 const SECONDARY: NavItem[] = [
   { label: 'Albums', to: '/explore/albums', icon: Disc3, match: (p) => p.startsWith('/explore/albums') || p.startsWith('/album') },
@@ -75,7 +76,6 @@ export const NavigationRail: React.FC = () => {
         expanded ? 'w-[var(--webx-drawer-width)]' : 'w-[var(--webx-rail-width)]'
       )}
     >
-      {/* Brand + toggle */}
       <div className={cn('flex items-center h-[calc(var(--webx-topbar-height)+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] shrink-0', expanded ? 'px-5 justify-between' : 'justify-center')}>
         {expanded && (
           <Link to="/" className="flex items-center gap-2.5 min-w-0">

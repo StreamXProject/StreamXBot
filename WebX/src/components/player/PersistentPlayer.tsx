@@ -15,7 +15,6 @@ import { Artwork } from '@/components/common/Artwork'
 import { IconButton } from '@/components/md3'
 import { cn } from '@/lib/cn'
 
-/** Hairline progress for the compact mini-player, driven from the engine */
 const MiniProgress: React.FC = () => {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => audioEngine.subscribeProgress((p) => {
@@ -110,10 +109,8 @@ export const PersistentPlayer: React.FC = () => {
 
   return (
     <div className="fixed inset-x-0 bottom-[calc(var(--webx-nav-height)+env(safe-area-inset-bottom,0px))] z-40 h-[var(--webx-mini-player-height)] md:relative md:bottom-auto md:z-auto md:h-[var(--webx-player-height)] shrink-0 elev-2 bg-surface-container border-t border-outline-variant/40 select-none">
-      {/* ---------- Compact (< md) ---------- */}
       <div className="md:hidden h-full flex items-center gap-3 px-3 relative overflow-hidden" onPointerDown={onSwipeStart} onPointerMove={onSwipeMove} onPointerUp={onSwipeEnd} onPointerCancel={onSwipeEnd}>
         <MiniProgress />
-        {/* swipe affordances */}
         {swipeDx !== 0 && (
           <div className={cn('absolute inset-y-0 flex items-center px-4 text-primary pointer-events-none transition-opacity', swipeDx < 0 ? 'right-0' : 'left-0')} style={{ opacity: Math.min(1, Math.abs(swipeDx) / 70) }}>
             {swipeDx < 0 ? <SkipForward className="size-6 fill-current" /> : <SkipBack className="size-6 fill-current" />}

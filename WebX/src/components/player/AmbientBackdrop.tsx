@@ -15,7 +15,6 @@ export const AmbientBackdrop: React.FC<{ src?: string | null; className?: string
     if (!enabled) return
     const current = layers[front]
     if ((src ?? null) === current) return
-    // preload then swap
     if (!src) {
       setLayers((l) => (front === 0 ? [l[0], null] : [null, l[1]]))
       setFront((f) => (f === 0 ? 1 : 0))
@@ -29,7 +28,6 @@ export const AmbientBackdrop: React.FC<{ src?: string | null; className?: string
       setFront(next)
     }
     img.src = src
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src, enabled])
 
   return (
@@ -49,7 +47,6 @@ export const AmbientBackdrop: React.FC<{ src?: string | null; className?: string
             />
           ) : null
         )}
-      {/* tint + vignette in theme colors */}
       <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, color-mix(in srgb, var(--md-sys-color-surface) 55%, transparent), color-mix(in srgb, var(--md-sys-color-surface) 78%, transparent) 55%, var(--md-sys-color-surface))' }} />
       <div className="absolute inset-0 bg-primary-container/10 mix-blend-overlay" />
     </div>

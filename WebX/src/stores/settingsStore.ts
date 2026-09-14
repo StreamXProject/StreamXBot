@@ -16,8 +16,6 @@ export interface SettingsState {
   apiBaseUrl: string
   /** Remembered servers for quick switching */
   knownServers: string[]
-  /** Use bundled demo catalog when the server is unreachable */
-  demoMode: boolean
 
   // Playback
   audioQuality: AudioQualityLevel
@@ -118,7 +116,6 @@ function legacyBase(): string {
 const DEFAULTS = {
   apiBaseUrl: legacyBase(),
   knownServers: [] as string[],
-  demoMode: false,
   audioQuality: 'lossless' as AudioQualityLevel,
   streamFormat: 'auto' as StreamFormat,
   normalizeAudio: false,

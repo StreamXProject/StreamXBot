@@ -1,7 +1,8 @@
 import React from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Sparkles, CalendarDays, CalendarRange, Calendar, ChevronRight, FlaskConical } from 'lucide-react'
+import { CalendarDays, CalendarRange, Calendar, ChevronRight, FlaskConical } from 'lucide-react'
+import { RecapIcon } from '@/components/common/RecapIcon'
 import { Button } from '@/components/md3'
 import { DEMO_TYPE } from '@/features/recap/mock'
 import { PageContainer } from '@/components/common/PageContainer'
@@ -33,7 +34,7 @@ function RecapCard({ r, featured }: { r: RecapAvailable; featured?: boolean }) {
       )}
     >
       <span className={cn('size-12 rounded-xl flex items-center justify-center shrink-0', featured ? 'bg-on-primary-container/15' : 'bg-surface-highest text-on-surface-variant')}>
-        {featured ? <Sparkles className="size-6" /> : <Icon className="size-5" />}
+        {featured ? <RecapIcon className="size-6" /> : <Icon className="size-5" />}
       </span>
       <span className="min-w-0 flex-1">
         <span className={cn('block type-label-md', featured ? 'opacity-80' : 'text-on-surface-variant')}>{TITLE[r.type]}{r.ongoing ? ' · in progress' : ''}</span>
@@ -69,7 +70,7 @@ function RecapsPage() {
   if (!isUser) {
     return (
       <PageContainer className="space-y-6">
-        <EmptyState icon={<Sparkles />} title="Recaps need an account" description="Listening history is tracked per account so your recap follows you across devices." />
+        <EmptyState icon={<RecapIcon />} title="Recaps need an account" description="Listening history is tracked per account so your recap follows you across devices." />
         {SamplePicker}
       </PageContainer>
     )
@@ -93,7 +94,7 @@ function RecapsPage() {
         <div className="space-y-3"><Skeleton className="h-28 rounded-2xl" /><Skeleton className="h-20 rounded-2xl" /><Skeleton className="h-20 rounded-2xl" /></div>
       ) : items.length === 0 ? (
         <>
-          <EmptyState icon={<Sparkles />} title="No recaps yet" description="Play some music — your first weekly recap appears after your first listens." />
+          <EmptyState icon={<RecapIcon />} title="No recaps yet" description="Play some music — your first weekly recap appears after your first listens." />
           {SamplePicker}
         </>
       ) : (

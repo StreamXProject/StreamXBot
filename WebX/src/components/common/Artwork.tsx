@@ -6,9 +6,7 @@ interface ArtworkProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, '
   src?: string | null
   alt: string
   className?: string
-  /** Shape & fallback icon */
   kind?: 'track' | 'album' | 'artist' | 'playlist'
-  /** Optional 2x2 collage when a list of urls is provided */
   collage?: string[]
   priority?: boolean
   rounded?: string
@@ -61,5 +59,4 @@ export const Artwork: React.FC<ArtworkProps> = React.memo(({ src, alt, className
 })
 Artwork.displayName = 'Artwork'
 
-/** Backwards-compatible alias */
 export const OptimizedImage = Artwork

@@ -71,7 +71,7 @@ export const TrackContextMenu: React.FC = () => {
       },
     },
     ...(typeof navigator !== 'undefined' && 'share' in navigator
-      ? [{ id: 'share', label: 'Share…', icon: <Share2 />, onSelect: () => navigator.share({ title: track.title, text: `${track.title} — ${track.artist}`, url: `${window.location.origin}/track/${encodeURIComponent(track.id)}` }).catch(() => {}) }]
+      ? [{ id: 'share', label: 'Share…', icon: <Share2 />, onSelect: () => navigator.share({ title: track.title, text: `${track.title} — ${track.artist}`, url: `${window.location.origin}/track/${encodeURIComponent(track.id)}` }).catch(() => { }) }]
       : []),
   ]
 

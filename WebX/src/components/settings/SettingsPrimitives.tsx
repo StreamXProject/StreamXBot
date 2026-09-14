@@ -33,7 +33,6 @@ export const SettingRow: React.FC<{
   icon?: React.ReactNode
   onClick?: () => void
   className?: string
-  /** Stack the control under the text (for wide controls) */
   stacked?: boolean
 }> = ({ label, description, control, icon, onClick, className, stacked }) => {
   const Comp = onClick ? 'button' : 'div'

@@ -16,14 +16,12 @@ import { cn } from '@/lib/cn'
 interface TrackRowProps {
   track: Track
   index: number
-  /** All tracks in this list, used for "play next" context and context menu */
   tracks?: Track[]
   onPlay?: (track: Track, index: number) => void
   showAlbum?: boolean
   showCover?: boolean
   showIndex?: boolean
   dense?: boolean
-  /** Extra trailing action (e.g. remove from playlist) */
   trailing?: React.ReactNode
   className?: string
 }
@@ -78,7 +76,6 @@ export const TrackRow: React.FC<TrackRowProps> = React.memo(
         )}
         aria-current={isCurrent ? 'true' : undefined}
       >
-        {/* index / now playing / hover play */}
         <div className="flex items-center gap-3">
           {showIndex && (
             <div className="w-6 flex items-center justify-center shrink-0 tabular text-on-surface-variant type-body-sm">
@@ -97,7 +94,6 @@ export const TrackRow: React.FC<TrackRowProps> = React.memo(
           )}
         </div>
 
-        {/* title / artist / album */}
         <div className={cn('min-w-0 grid gap-x-4 items-center', showAlbum ? 'md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]' : '')}>
           <div className="min-w-0">
             <div className={cn('truncate type-body-md font-medium', isCurrent ? 'text-primary' : 'text-on-surface')}>{track.title}</div>
@@ -125,7 +121,6 @@ export const TrackRow: React.FC<TrackRowProps> = React.memo(
           )}
         </div>
 
-        {/* actions */}
         <div className="flex items-center gap-0.5 justify-end">
           <button
             onClick={(e) => {

@@ -5,10 +5,7 @@ import { useQueueStore } from '@/stores/queueStore'
 import { IconButton } from '@/components/md3'
 import { cn } from '@/lib/cn'
 
-/**
- * Buffering indicator is delayed so brief `waiting` → `playing` flips (e.g. on
- * resume) don't flash a spinner and make the button look like it jumps states.
- */
+
 function useDelayedFlag(flag: boolean, delayMs: number): boolean {
   const [shown, setShown] = useState(false)
   useEffect(() => {
@@ -56,7 +53,6 @@ export const PlaybackControls: React.FC<{ size?: 'sm' | 'lg'; className?: string
           isPlaying ? 'rounded-lg' : 'rounded-full'
         )}
       >
-        {/* Both glyphs stay mounted and crossfade/rotate together with the shape change — no icon swap flicker */}
         <Play className={cn('absolute fill-current ml-0.5 transition-[opacity,transform] duration-300 ease-emphasized', isPlaying ? 'opacity-0 scale-50 rotate-90' : 'opacity-100 scale-100 rotate-0')} />
         <Pause className={cn('absolute fill-current transition-[opacity,transform] duration-300 ease-emphasized', isPlaying ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-50 -rotate-90')} />
         {showSpinner && (
