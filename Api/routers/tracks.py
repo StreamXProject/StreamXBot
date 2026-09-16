@@ -1251,6 +1251,7 @@ async def album_details(album_id: str, user_id: Optional[int] = Depends(get_opti
                 "source_message_id": 1,
                 "audio": 1,
                 "spotify": 1,
+                "created_at": 1,
                 "updated_at": 1,
             }
         },
@@ -1260,6 +1261,8 @@ async def album_details(album_id: str, user_id: Optional[int] = Depends(get_opti
     async for doc in cur:
         if "_id" in doc:
             doc["_id"] = str(doc["_id"])
+        if not doc.get("created_at") and doc.get("updated_at"):
+            doc["created_at"] = doc.get("updated_at")
         spotify = doc.get("spotify") if isinstance(doc.get("spotify"), dict) else {}
         if isinstance(spotify, dict):
             if isinstance(spotify.get("cover_url"), str):
@@ -1316,6 +1319,7 @@ async def album_tracks(
                 "source_message_id": 1,
                 "audio": 1,
                 "spotify": 1,
+                "created_at": 1,
                 "updated_at": 1,
             }
         },
@@ -1325,6 +1329,8 @@ async def album_tracks(
     async for doc in cur:
         if "_id" in doc:
             doc["_id"] = str(doc["_id"])
+        if not doc.get("created_at") and doc.get("updated_at"):
+            doc["created_at"] = doc.get("updated_at")
         spotify = doc.get("spotify") if isinstance(doc.get("spotify"), dict) else {}
         if isinstance(spotify, dict):
             if isinstance(spotify.get("cover_url"), str):
@@ -1431,7 +1437,7 @@ async def artist_details(artist_id: str, user_id: Optional[int] = Depends(get_op
         {"$addFields": {"_artist_raw": {"$ifNull": ["$audio.artist", "$audio.performer"]}}},
         {"$addFields": {"_artist_norm": {"$toLower": {"$trim": {"input": "$_artist_raw"}}}}},
         {"$match": {"_artist_norm": str(match_artist)}},
-        {"$sort": {"updated_at": -1}},
+        {"$sort": {"created_at": -1, "updated_at": -1}},
         {"$limit": 200},
         {
             "$project": {
@@ -1440,6 +1446,7 @@ async def artist_details(artist_id: str, user_id: Optional[int] = Depends(get_op
                 "source_message_id": 1,
                 "audio": 1,
                 "spotify": 1,
+                "created_at": 1,
                 "updated_at": 1,
             }
         },
@@ -1448,6 +1455,10 @@ async def artist_details(artist_id: str, user_id: Optional[int] = Depends(get_op
     tracks: list[dict] = []
     track_ids: list[str] = []
     async for doc in cur:
+        if "_id" in doc:
+            doc["_id"] = str(doc["_id"])
+        if not doc.get("created_at") and doc.get("updated_at"):
+            doc["created_at"] = doc.get("updated_at")
         tid = str(doc.get("_id") or "").strip()
         if not tid:
             continue
@@ -1578,7 +1589,7 @@ async def artist_tracks(
     skip = (int(page) - 1) * int(limit)
     data_pipeline = [
         *base_pipeline,
-        {"$sort": {"updated_at": -1}},
+        {"$sort": {"created_at": -1, "updated_at": -1}},
         {"$skip": int(skip)},
         {"$limit": int(limit)},
         {
@@ -1588,6 +1599,7 @@ async def artist_tracks(
                 "source_message_id": 1,
                 "audio": 1,
                 "spotify": 1,
+                "created_at": 1,
                 "updated_at": 1,
             }
         },
@@ -1597,6 +1609,8 @@ async def artist_tracks(
     async for doc in cur:
         if "_id" in doc:
             doc["_id"] = str(doc["_id"])
+        if not doc.get("created_at") and doc.get("updated_at"):
+            doc["created_at"] = doc.get("updated_at")
         spotify = doc.get("spotify") if isinstance(doc.get("spotify"), dict) else {}
         if isinstance(spotify, dict):
             if isinstance(spotify.get("cover_url"), str):

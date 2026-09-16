@@ -88,6 +88,7 @@ def _browse_item_from_doc(doc: dict, liked_set: set[str] | None = None) -> Brows
         sampling_rate_hz=audio.get("sampling_rate_hz"),
         spotify_url=_clean_url(spotify.get("url") or spotify.get("spotify_url")),
         cover_url=_clean_url(spotify.get("cover_url")),
+        created_at=doc.get("created_at") or doc.get("updated_at"),
         updated_at=doc.get("updated_at"),
         liked=is_liked,
     )
@@ -160,13 +161,14 @@ async def browse_tracks(
     if topic_id is not None:
         query["topic_id"] = int(topic_id)
 
-    sort = [("source_message_id", -1)] if channel_id is not None else [("updated_at", -1), ("created_at", -1), ("_id", -1)]
+    sort = [("source_message_id", -1)] if channel_id is not None else [("created_at", -1), ("source_message_id", -1), ("_id", -1)]
     projection = {
         "_id": 1,
         "source_chat_id": 1,
         "source_message_id": 1,
         "audio": 1,
         "spotify": 1,
+        "created_at": 1,
         "updated_at": 1,
         "topic_id": 1,
         "topic_name": 1,
@@ -337,11 +339,12 @@ async def browse_topic_tracks(
         "source_message_id": 1,
         "audio": 1,
         "spotify": 1,
+        "created_at": 1,
         "updated_at": 1,
         "topic_id": 1,
         "topic_name": 1,
     }
-    sort = [("updated_at", -1), ("source_message_id", -1), ("_id", -1)]
+    sort = [("created_at", -1), ("source_message_id", -1), ("_id", -1)]
 
     total, docs = await asyncio.gather(
         col.count_documents(query),
@@ -410,11 +413,12 @@ async def search_tracks(q: str, *, channel_id: Optional[int], page: int, per_pag
         "source_message_id": 1,
         "audio": 1,
         "spotify": 1,
+        "created_at": 1,
         "updated_at": 1,
     }
 
     total = await col.count_documents(query)
-    cursor = col.find(query, projection).sort([("updated_at", -1)]).skip(skip).limit(per_page)
+    cursor = col.find(query, projection).sort([("created_at", -1), ("source_message_id", -1)]).skip(skip).limit(per_page)
 
     docs = await cursor.to_list(length=per_page)
     track_ids = [_as_str_id(d.get("_id")) for d in docs]
@@ -524,6 +528,7 @@ async def random_tracks(
         "source_message_id": 1,
         "audio": 1,
         "spotify": 1,
+        "created_at": 1,
         "updated_at": 1,
     }
 
@@ -567,6 +572,7 @@ async def get_browse_items_by_ids(track_ids: list[str], user_id: Optional[int] =
         "source_message_id": 1,
         "audio": 1,
         "spotify": 1,
+        "created_at": 1,
         "updated_at": 1,
     }
     cursor = col.find({"_id": {"$in": ids}, "deleted": {"$ne": True}}, projection)
@@ -1399,6 +1405,7 @@ async def get_tracks_by_ids(track_ids: list[str], user_id: Optional[int] = None)
         "spotify": 1,
         "content_hash": 1,
         "fingerprint": 1,
+        "created_at": 1,
         "updated_at": 1,
     }
     cursor = col.find({"_id": {"$in": ids}, "deleted": {"$ne": True}}, projection)
@@ -1406,6 +1413,8 @@ async def get_tracks_by_ids(track_ids: list[str], user_id: Optional[int] = None)
     async for doc in cursor:
         if "_id" in doc:
             doc["_id"] = _as_str_id(doc["_id"])
+        if not doc.get("created_at") and doc.get("updated_at"):
+            doc["created_at"] = doc.get("updated_at")
         _normalize_spotify(doc)
         docs.append(doc)
 

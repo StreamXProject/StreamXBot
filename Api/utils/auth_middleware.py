@@ -149,8 +149,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Allow browser HTML / SPA navigation directly through to serve frontend
-        accept = (request.headers.get("accept") or "").lower()
-        if request.method in ("GET", "HEAD") and "text/html" in accept:
+        from Api.utils.spa_middleware import is_html_navigation
+        if is_html_navigation(request):
             return await call_next(request)
 
         path = request.url.path or "/"

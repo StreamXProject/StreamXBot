@@ -34,22 +34,19 @@ RUN apt-get update && \
 WORKDIR /app
 
 RUN python3 -m venv /app/streamvenv
+ENV PATH="/app/streamvenv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PORT=8000
 
 COPY requirements.txt .
-RUN /app/streamvenv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    /app/streamvenv/bin/pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
 COPY --from=frontend-builder /app/WebX/dist ./dist
 
-COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
-
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PORT=8000
-
 EXPOSE 8000
 
-CMD ["bash", "/app/start.sh"]
+CMD ["python3", "-m", "stream"]

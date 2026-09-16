@@ -179,11 +179,11 @@ python -m stream
 
 The root `Dockerfile` already:
 
-1. builds `StreamXWeb`
-2. installs Python dependencies
+1. builds `WebX`
+2. installs Python dependencies in a virtual environment
 3. copies backend code
 4. copies the built web `dist/`
-5. starts the app through `start.sh`
+5. starts the app directly via `python3 -m stream`
 
 Run:
 

@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 
 from Api.deps.db import init_db
 from Api.utils.auth_middleware import AuthMiddleware
+from Api.utils.spa_middleware import SPAMiddleware
 from Api.routers.recaps import router as recaps_router
 from Api.routers.access import router as access_router
 from Api.routers.browse import router as browse_router
@@ -35,15 +36,21 @@ from stream.core.config_manager import Config
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_dist = os.path.join(BASE_DIR, "dist")
 _webx_dist = os.path.join(BASE_DIR, "WebX", "dist")
-if os.path.exists(_webx_dist):
+_sibling_webx_dist = os.path.join(os.path.dirname(BASE_DIR), "WebX", "dist")
+_web_dist = os.path.join(BASE_DIR, "StreamXWeb", "dist")
+
+if os.path.exists(_dist):
+    DIST_DIR = _dist
+elif os.path.exists(_webx_dist):
     DIST_DIR = _webx_dist
+elif os.path.exists(_sibling_webx_dist):
+    DIST_DIR = _sibling_webx_dist
+elif os.path.exists(_web_dist):
+    DIST_DIR = _web_dist
 else:
-    DIST_DIR = os.path.join(BASE_DIR, "dist")
-    if not os.path.exists(DIST_DIR):
-        _web_dist = os.path.join(BASE_DIR, "StreamXWeb", "dist")
-        if os.path.exists(_web_dist):
-            DIST_DIR = _web_dist
+    DIST_DIR = _dist
 ASSETS_DIR = os.path.join(DIST_DIR, "assets")
 
 
@@ -78,6 +85,7 @@ def _get_cors_origins():
     return ["*"]
 
 app.add_middleware(AuthMiddleware)
+app.add_middleware(SPAMiddleware, dist_dir=DIST_DIR)
 
 _cors_origins = _get_cors_origins()
 _allow_all_origins = "*" in _cors_origins

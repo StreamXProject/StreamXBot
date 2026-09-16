@@ -1202,6 +1202,7 @@ async def index_command(client, message):
 
             artists = _split_artists(artist) if artist else []
 
+            now_ts = time.time()
             payload = {
                 "telegram": {
                     "file_id": None,
@@ -1218,13 +1219,14 @@ async def index_command(client, message):
                 "source_message_id": msg_id,
                 "indexed": True,
                 "enriched": False,
-                "updated_at": time.time(),
+                "updated_at": now_ts,
             }
 
             await db_handler.audio_collection.update_one(
                 {"_id": file_unique_id},
                 {
                     "$set": payload,
+                    "$setOnInsert": {"created_at": now_ts},
                     "$unset": {
                         "enriching": "",
                         "enrichment_started_at": "",

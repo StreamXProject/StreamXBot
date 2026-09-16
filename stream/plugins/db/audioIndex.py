@@ -793,12 +793,16 @@ async def _upsert_minimal(message: Message, media, enriching: bool = False) -> s
     if enriching:
         payload["enriching"] = True
 
-    payload["updated_at"] = time.time()
+    now_ts = time.time()
+    payload["updated_at"] = now_ts
 
     if file_ids:
         payload["telegram"]["file_ids"] = file_ids
 
-    update = {"$set": {k: v for k, v in payload.items() if v is not None}}
+    update = {
+        "$set": {k: v for k, v in payload.items() if v is not None},
+        "$setOnInsert": {"created_at": now_ts},
+    }
     if not enriching:
         update["$unset"] = {
             "enriching": "",
@@ -1185,6 +1189,8 @@ async def _enrich_audio_doc(
             "topic_name": 1,
             "cache_chat_id": 1,
             "cache_message_id": 1,
+            "created_at": 1,
+            "updated_at": 1,
         },
     )
     if (
@@ -1213,6 +1219,9 @@ async def _enrich_audio_doc(
         "enriching": True,
         "updated_at": now_ts,
     }
+    if existing and not existing.get("created_at"):
+        set_fields["created_at"] = existing.get("updated_at") or now_ts
+
     try:
         await col.update_one({"_id": target_id}, {"$set": set_fields, "$setOnInsert": {"created_at": now_ts}}, upsert=True)
     except DuplicateKeyError:
@@ -1245,6 +1254,8 @@ async def _enrich_audio_doc(
                         "topic_name": 1,
                         "cache_chat_id": 1,
                         "cache_message_id": 1,
+                        "created_at": 1,
+                        "updated_at": 1,
                     },
                 )
             except Exception:
@@ -1266,6 +1277,10 @@ async def _enrich_audio_doc(
                 ensure_source2["cache_chat_id"] = source_meta.get("cache_chat_id")
             if not existing3 or existing3.get("cache_message_id") is None:
                 ensure_source2["cache_message_id"] = source_meta.get("cache_message_id")
+            if existing3 and existing3.get("created_at"):
+                set_fields.pop("created_at", None)
+            elif existing3 and not existing3.get("created_at"):
+                set_fields["created_at"] = existing3.get("updated_at") or now_ts
             await col.update_one(
                 {"_id": target_id},
                 {"$set": {**set_fields, **ensure_source2}},

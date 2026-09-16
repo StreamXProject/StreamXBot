@@ -16,6 +16,4 @@ services:
       - ./cookies:/app/cookies
       - ./stream_media:/app/stream_media
 
-    command: ["bash", "/app/start.sh"]
-
     restart: on-failure
