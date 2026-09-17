@@ -224,6 +224,8 @@ class MongoDatabase:
             await audio_col.create_index([("deleted", 1), ("topic_name", 1), ("created_at", -1), ("source_message_id", -1)], name="idx_topic_browse_created")
             await audio_col.create_index([("deleted", 1), ("source_chat_id", 1), ("topic_name", 1), ("created_at", -1)], name="idx_chat_topic_browse_created")
             await audio_col.create_index([("created_at", -1)], name="idx_created_at")
+            await audio_col.create_index([("deleted", 1), ("updated_at", -1)], name="idx_deleted_updated_at")
+            await audio_col.create_index([("updated_at", -1)], name="idx_updated_at")
             await audio_col.create_index([("deleted", 1), ("topic_name", 1), ("updated_at", -1), ("source_message_id", -1)], name="idx_topic_browse")
             await audio_col.create_index([("deleted", 1), ("source_chat_id", 1), ("topic_name", 1), ("updated_at", -1)], name="idx_chat_topic_browse")
             await audio_col.create_index([("topic_name", 1)], name="idx_topic_name")

@@ -124,6 +124,7 @@ async def reverify_tracks(
                 "lyrics_cache": 1,
                 "enriched": 1,
             },
+            allow_disk_use=True,
         ).sort([("updated_at", -1)])
 
         if limit and limit > 0:

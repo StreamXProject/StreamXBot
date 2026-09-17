@@ -587,7 +587,7 @@ async def _refresh_albums_cache(*, limit_albums: int = 2000) -> dict[str, int]:
             {"$sort": {"updated_at": -1}},
             {"$limit": int(limit_albums)},
         ]
-        cur = await tracks_col.aggregate(pipeline)
+        cur = await tracks_col.aggregate(pipeline, allowDiskUse=True)
 
         albums_col = db_handler.get_collection("albums").collection
         now = time.time()
@@ -737,6 +737,7 @@ async def _refresh_artists_cache(*, limit_tracks: int = 20000, limit_artists: in
                 "$or": [{"audio.artist": {"$exists": True, "$ne": ""}}, {"audio.performer": {"$exists": True, "$ne": ""}}],
             },
             {"audio.artist": 1, "audio.performer": 1, "audio.artists": 1, "spotify.cover_url": 1, "updated_at": 1},
+            allow_disk_use=True,
         )
         .sort([("updated_at", -1)])
         .limit(int(limit_tracks))
