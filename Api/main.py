@@ -41,12 +41,12 @@ _webx_dist = os.path.join(BASE_DIR, "WebX", "dist")
 _sibling_webx_dist = os.path.join(os.path.dirname(BASE_DIR), "WebX", "dist")
 _web_dist = os.path.join(BASE_DIR, "StreamXWeb", "dist")
 
-if os.path.exists(_dist):
+if os.path.exists(_sibling_webx_dist):
+    DIST_DIR = _sibling_webx_dist
+elif os.path.exists(_dist):
     DIST_DIR = _dist
 elif os.path.exists(_webx_dist):
     DIST_DIR = _webx_dist
-elif os.path.exists(_sibling_webx_dist):
-    DIST_DIR = _sibling_webx_dist
 elif os.path.exists(_web_dist):
     DIST_DIR = _web_dist
 else:

@@ -11,7 +11,8 @@ GenCovers/
 !requirements.txt
 !test.py
 .env
-
+cookies/
+stream_media/
 
 logs
 *.log

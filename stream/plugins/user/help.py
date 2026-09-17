@@ -287,6 +287,8 @@ _ADMIN_TEXT = (
     "  Restart the bot process and background workers.\n\n"
     "• `/index`\n"
     "  Trigger Userbot channel/topic history indexing.\n\n"
+    "• `/reverify_tracks` [force|status|cancel]\n"
+    "  Scan library to re-verify metadata & add missing Romanized titles/lyrics.\n\n"
     "• `/fileid`\n"
     "  Retrieve Pyrogram file_id for replied media.\n\n"
     "• `/bs`\n"
@@ -331,18 +333,72 @@ _ALL_TEXT = (
     "• `/update` - Pull git updates\n"
     "• `/restart` - Restart bot process\n"
     "• `/index` - Userbot history indexing\n"
+    "• `/reverify_tracks` - Re-verify tracks & missing Romanized titles\n"
     "• `/fileid` - Media file_id extractor\n"
     "• `/bs` - Set panel banner image"
 )
 
 
 @bot.on_message(filters.command(["help", "start"]))
-async def help_command_handler(_, message: Message):
-    """Handle /help and /start with interactive inline buttons."""
+async def help_command_handler(client, message: Message):
+    """Handle /help and /start with interactive inline buttons, plus WebX bot-session auth."""
+    if len(message.command) > 1 and (message.command[1].startswith("auth_") or message.command[1].startswith("login_")):
+        session_id = message.command[1].strip()
+        from stream.database.MongoDb import db_handler
+        import time
+
+        col = db_handler.get_collection("bot_auth_sessions").collection
+        session = await col.find_one({"_id": session_id})
+        if not session or session.get("status") != "pending" or session.get("expires_at", 0) < time.time():
+            await message.reply_text(
+                "⚠️ **This sign-in request has expired or is invalid.**\n\nPlease return to your browser and click **Open Telegram App** again.",
+            )
+            return
+
+        from Api.routers.auth import _authenticate_or_register_tg_user
+        tg_user = message.from_user
+        name = tg_user.first_name or ""
+        if tg_user.last_name:
+            name = f"{name} {tg_user.last_name}".strip()
+        username = tg_user.username or None
+        invite_code = session.get("invite_code")
+
+        try:
+            user_info, token = await _authenticate_or_register_tg_user(
+                tg_user_id=tg_user.id,
+                name=name or username or "Telegram User",
+                username=username,
+                photo_url=None,
+                invite_code=invite_code,
+            )
+            await col.update_one(
+                {"_id": session_id},
+                {
+                    "$set": {
+                        "status": "confirmed",
+                        "token": token,
+                        "user_id": user_info["user_id"],
+                        "first_name": user_info["first_name"],
+                        "username": user_info["username"],
+                        "photo_url": user_info.get("photo_url"),
+                        "profile_url": user_info.get("profile_url"),
+                        "confirmed_at": time.time(),
+                    }
+                },
+            )
+            await message.reply_text(
+                f"**Authorized Successfully WebX!**\n\nWelcome, **{user_info.get('first_name') or 'User'}**! Your browser session is ready.\nYou can now return to your browser and enjoy your music!",
+            )
+            return
+        except Exception as e:
+            await message.reply_text(
+                f"**Authorization failed:** {str(e)}",
+            )
+            return
+
     await message.reply_text(
         _MAIN_TEXT,
         reply_markup=_MAIN_KEYBOARD,
-        disable_web_page_preview=True,
     )
 
 
@@ -385,7 +441,6 @@ async def help_callback_handler(_, query: CallbackQuery):
         await query.edit_message_text(
             text,
             reply_markup=markup,
-            disable_web_page_preview=True,
         )
     except MessageNotModified:
         pass

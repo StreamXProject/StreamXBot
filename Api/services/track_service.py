@@ -72,6 +72,7 @@ def _browse_item_from_doc(doc: dict, liked_set: set[str] | None = None) -> Brows
 
     tid = _as_str_id(doc.get("_id"))
     is_liked = bool(liked_set and tid in liked_set)
+    titles = doc.get("titles") or (audio.get("titles") if isinstance(audio, dict) else None)
 
     return BrowseItem(
         _id=tid,
@@ -88,6 +89,7 @@ def _browse_item_from_doc(doc: dict, liked_set: set[str] | None = None) -> Brows
         sampling_rate_hz=audio.get("sampling_rate_hz"),
         spotify_url=_clean_url(spotify.get("url") or spotify.get("spotify_url")),
         cover_url=_clean_url(spotify.get("cover_url")),
+        titles=titles,
         created_at=doc.get("created_at") or doc.get("updated_at"),
         updated_at=doc.get("updated_at"),
         liked=is_liked,
@@ -402,6 +404,9 @@ async def search_tracks(q: str, *, channel_id: Optional[int], page: int, per_pag
             {"audio.artist": {"$regex": pattern, "$options": "i"}},
             {"audio.performer": {"$regex": pattern, "$options": "i"}},
             {"audio.album": {"$regex": pattern, "$options": "i"}},
+            {"titles.romanized": {"$regex": pattern, "$options": "i"}},
+            {"titles.original": {"$regex": pattern, "$options": "i"}},
+            {"titles.translations.en": {"$regex": pattern, "$options": "i"}},
         ],
     }
     if channel_id is not None:
@@ -413,6 +418,7 @@ async def search_tracks(q: str, *, channel_id: Optional[int], page: int, per_pag
         "source_message_id": 1,
         "audio": 1,
         "spotify": 1,
+        "titles": 1,
         "created_at": 1,
         "updated_at": 1,
     }

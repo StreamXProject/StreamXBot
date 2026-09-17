@@ -17,3 +17,4 @@ pillow
 psutil
 firebase-admin
 yt-dlp[default]
+pykakasi

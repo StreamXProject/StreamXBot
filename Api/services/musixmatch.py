@@ -1,14 +1,17 @@
 import asyncio
+import json
+import os
+from pathlib import Path
 import time
 from typing import Any
 
 import httpx
-import json
 
 from stream.core.config_manager import Config
 
 _BASE_URL = "https://apic.musixmatch.com/ws/1.1"
 _APP_ID = "mac-ios-v2.0"
+_TOKEN_FILE = Path(__file__).resolve().parent.parent.parent / "cookies" / ".musixmatch_token"
 
 _token_lock = asyncio.Lock()
 _cached_user_token: str | None = None
@@ -225,17 +228,205 @@ def _extract_synced_subtitles(payload: Any) -> str | None:
         return None
 
 
+import re
+
+try:
+    import pykakasi
+
+    _KAKASI = pykakasi.kakasi()
+except Exception:
+    _KAKASI = None
+
+
+def _is_cjk(text: str) -> bool:
+    if not text:
+        return False
+    return any(
+        "\u3040" <= c <= "\u309f"  # Hiragana
+        or "\u30a0" <= c <= "\u30ff"  # Katakana
+        or "\u4e00" <= c <= "\u9fff"  # CJK Ideographs
+        or "\uac00" <= c <= "\ud7af"  # Hangul
+        for c in text
+    )
+
+
+def _romanize_japanese(text: str) -> str | None:
+    if not text or not _KAKASI or not _is_cjk(text):
+        return None
+    try:
+        conv = _KAKASI.convert(text)
+        parts = [
+            item.get("hepburn") or item.get("orig") or ""
+            for item in conv
+            if (item.get("hepburn") or item.get("orig"))
+        ]
+        res = " ".join(parts)
+        res = re.sub(r"(\w)\(", r"\1 (", res)
+        res = re.sub(r"([(\[])\s+", r"\1", res)
+        res = re.sub(r"\s+([)\]])", r"\1", res)
+        res = re.sub(r"\s*([,\-!?\'\"])", r"\1", res)
+        res = re.sub(r"\s+", " ", res).strip()
+        words = []
+        for w in res.split():
+            if w.startswith("(") and len(w) > 1:
+                words.append("(" + w[1:].capitalize())
+            else:
+                words.append(w.capitalize() if w.islower() else w)
+        return " ".join(words)
+    except Exception:
+        return None
+
+
+def parse_mxm_titles(track_info: dict | None, fallback_title: str = "") -> dict | None:
+    """Parse Musixmatch track metadata into a normalized titles dict:
+    {
+        "original": "ふたりの異変",
+        "romanized": "Futarino Ihen",
+        "translations": {
+            "en": "Unusual Changes of Two",
+            ...
+        }
+    }
+    Languages that Musixmatch does not return are omitted.
+    """
+    t_info = track_info if isinstance(track_info, dict) else {}
+    fallback = str(fallback_title or "").strip()
+    mxm_name = str(t_info.get("track_name") or "").strip()
+
+    original = fallback or mxm_name
+    if not original:
+        return None
+
+    raw_list = t_info.get("track_name_translation_list")
+    romanized: str | None = None
+    translations: dict[str, str] = {}
+
+    if isinstance(raw_list, list):
+        for entry in raw_list:
+            if not isinstance(entry, dict):
+                continue
+            item = entry.get("track_name_translation")
+            if not isinstance(item, dict):
+                item = entry
+
+            lang = str(item.get("language") or "").strip().lower()
+            val = str(item.get("translation") or "").strip()
+            if not lang or not val:
+                continue
+
+            # Check romanized identifiers (rj = Romanized Japanese, rk = Romanized Korean, u0/zr = transliteration)
+            if lang in ("rj", "rk", "romanized", "romaja"):
+                romanized = val
+            elif lang in ("u0", "zr"):
+                if not romanized and not _is_cjk(val):
+                    romanized = val
+                else:
+                    translations[lang] = val
+            else:
+                translations[lang] = val
+
+    # If Musixmatch returned an English / alternate release title in track_name that differs from original
+    if mxm_name and mxm_name.lower() != original.lower():
+        if _is_cjk(original) and not _is_cjk(mxm_name):
+            if "en" not in translations:
+                translations["en"] = mxm_name
+        elif not _is_cjk(original) and _is_cjk(mxm_name):
+            if "ja" not in translations:
+                translations["ja"] = mxm_name
+
+    # If romanized title is not yet available, fallback to Japanese romanization if original has CJK/Kana
+    if not romanized:
+        rom = _romanize_japanese(original)
+        if rom and rom.lower() != original.lower():
+            romanized = rom
+
+    out: dict[str, Any] = {"original": original}
+    if romanized:
+        out["romanized"] = romanized
+    if translations:
+        out["translations"] = translations
+
+    return out
+
+
+
+async def save_track_titles(track_id: str, titles: dict) -> bool:
+    """Save normalized titles into the audioTracks MongoDB collection."""
+    if not track_id or not isinstance(titles, dict) or not titles:
+        return False
+    try:
+        from Api.deps.db import get_audio_tracks_collection
+
+        col = get_audio_tracks_collection()
+        await col.update_one(
+            {"_id": str(track_id)},
+            {
+                "$set": {
+                    "titles": titles,
+                    "audio.titles": titles,
+                    "updated_at": time.time(),
+                }
+            },
+            upsert=False,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _read_persisted_token() -> str | None:
+    env_tok = (os.getenv("MUSIXMATCH_USER_TOKEN") or getattr(Config, "MUSIXMATCH_USER_TOKEN", None) or "").strip()
+    if env_tok:
+        return env_tok
+    try:
+        if _TOKEN_FILE.exists():
+            content = _TOKEN_FILE.read_text(encoding="utf-8").strip()
+            if content:
+                data = json.loads(content) if content.startswith("{") else {"token": content}
+                tok = str(data.get("token") or "").strip()
+                if tok:
+                    return tok
+    except Exception:
+        pass
+    return None
+
+
+def _persist_token(token: str) -> None:
+    if not token or not token.strip():
+        return
+    try:
+        _TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _TOKEN_FILE.write_text(
+            json.dumps({"token": token.strip(), "saved_at": time.time()}, indent=2),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
 async def _fetch_user_token(*, force_refresh: bool = False) -> str | None:
     global _cached_user_token, _cached_user_token_ts
 
     now = time.time()
-    if not force_refresh and _cached_user_token and (now - _cached_user_token_ts) < 6 * 3600:
-        return _cached_user_token
+    if not force_refresh:
+        if _cached_user_token and (now - _cached_user_token_ts) < 24 * 3600:
+            return _cached_user_token
+        disk_tok = _read_persisted_token()
+        if disk_tok:
+            _cached_user_token = disk_tok
+            _cached_user_token_ts = now
+            return disk_tok
 
     async with _token_lock:
         now = time.time()
-        if not force_refresh and _cached_user_token and (now - _cached_user_token_ts) < 6 * 3600:
-            return _cached_user_token
+        if not force_refresh:
+            if _cached_user_token and (now - _cached_user_token_ts) < 24 * 3600:
+                return _cached_user_token
+            disk_tok = _read_persisted_token()
+            if disk_tok:
+                _cached_user_token = disk_tok
+                _cached_user_token_ts = now
+                return disk_tok
 
         http_status, payload = await asyncio.to_thread(
             _sync_get_json,
@@ -243,20 +434,122 @@ async def _fetch_user_token(*, force_refresh: bool = False) -> str | None:
             params={"app_id": _APP_ID},
         )
         if http_status != 200:
-            return None
+            return _read_persisted_token()
 
         mxm_status = _extract_header_status(payload) or http_status
         if mxm_status != 200:
-            return None
+            return _read_persisted_token()
+
         token = (
             (((payload or {}).get("message") or {}).get("body") or {}).get("user_token") or ""
         ).strip()
         if not token:
-            return None
+            return _read_persisted_token()
 
         _cached_user_token = token
         _cached_user_token_ts = time.time()
+        _persist_token(token)
         return token
+
+
+async def fetch_and_save_musixmatch_titles(
+    track_id: str,
+    *,
+    track: dict | None = None,
+    title: str = "",
+    artist: str = "",
+    spotify_track_id: str = "",
+) -> dict | None:
+    """Query Musixmatch matcher.track.get and save parsed titles in audioTracks collection."""
+    if not track_id:
+        return None
+
+    t = track or {}
+    audio = t.get("audio") if isinstance(t.get("audio"), dict) else {}
+    telegram = t.get("telegram") if isinstance(t.get("telegram"), dict) else {}
+
+    track_title = title or (audio.get("title") or "").strip() or (telegram.get("title") or "").strip()
+    track_artist = (
+        artist
+        or (audio.get("artist") or "").strip()
+        or (audio.get("performer") or "").strip()
+        or (telegram.get("artist") or "").strip()
+    )
+    sp_id = spotify_track_id or _pick_spotify_track_id(t)
+
+    token = await _fetch_user_token(force_refresh=False)
+    if not token:
+        return None
+
+    params: dict[str, Any] = {
+        "usertoken": token,
+        "app_id": _APP_ID,
+        "subtitle_format": "mxm",
+    }
+    if sp_id:
+        params["track_spotify_id"] = sp_id
+    elif track_title and track_artist:
+        params["q_track"] = track_title
+        params["q_artist"] = track_artist
+    elif track_title:
+        params["q_track"] = track_title
+    else:
+        return None
+
+    http_status, payload = await asyncio.to_thread(
+        _sync_get_json,
+        url=f"{_BASE_URL}/macro.subtitles.get",
+        params=params,
+    )
+    mxm_status = _extract_header_status(payload) or http_status
+    if mxm_status == 400 or http_status in (400, 401, 403):
+        token2 = await _fetch_user_token(force_refresh=True)
+        if token2:
+            params["usertoken"] = token2
+            http_status, payload = await asyncio.to_thread(
+                _sync_get_json,
+                url=f"{_BASE_URL}/macro.subtitles.get",
+                params=params,
+            )
+            mxm_status = _extract_header_status(payload) or http_status
+
+    track_info: dict[str, Any] = {}
+    if mxm_status == 200:
+        macro = (((payload or {}).get("message") or {}).get("body") or {}).get("macro_calls") or {}
+        matcher = (macro.get("matcher.track.get") or {}).get("message") or {}
+        if matcher.get("header", {}).get("status_code") == 200:
+            track_info = (matcher.get("body") or {}).get("track") or {}
+
+    # Fallback to track.search if matcher.track.get didn't find the track
+    if not track_info and (track_title or track_artist):
+        search_params: dict[str, Any] = {
+            "usertoken": params.get("usertoken") or token,
+            "app_id": _APP_ID,
+            "page_size": 3,
+        }
+        if track_title and track_artist:
+            search_params["q_track"] = track_title
+            search_params["q_artist"] = track_artist
+        elif track_title:
+            search_params["q_track"] = track_title
+        elif track_artist:
+            search_params["q_artist"] = track_artist
+
+        s_status, s_payload = await asyncio.to_thread(
+            _sync_get_json,
+            url=f"{_BASE_URL}/track.search",
+            params=search_params,
+        )
+        s_list = (((s_payload or {}).get("message") or {}).get("body") or {}).get("track_list") or []
+        if s_list and isinstance(s_list, list):
+            first_match = s_list[0].get("track") or {}
+            if first_match:
+                track_info = first_match
+
+    titles = parse_mxm_titles(track_info, fallback_title=track_title)
+    if titles:
+        await save_track_titles(track_id, titles)
+    return titles
 
 
 async def fetch_track_lyrics_from_musixmatch(*, track: dict) -> dict:
@@ -266,6 +559,7 @@ async def fetch_track_lyrics_from_musixmatch(*, track: dict) -> dict:
     artist = (audio.get("artist") or "").strip() or (audio.get("performer") or "").strip() or (telegram.get("artist") or "").strip()
     album = (audio.get("album") or "").strip() or (telegram.get("album") or "").strip()
     year = audio.get("year")
+    track_id = str(track.get("_id") or track.get("id") or "").strip()
 
     spotify_track_id = _pick_spotify_track_id(track)
     if not spotify_track_id:
@@ -335,10 +629,16 @@ async def fetch_track_lyrics_from_musixmatch(*, track: dict) -> dict:
             **({"musixmatch": debug_payload} if debug_payload is not None else {}),
         }
 
+    macro = (((payload or {}).get("message") or {}).get("body") or {}).get("macro_calls") or {}
+    track_info = (((macro.get("matcher.track.get") or {}).get("message") or {}).get("body") or {}).get("track") or {}
+
+    # Extract alternate / romanized titles and persist if available
+    titles = parse_mxm_titles(track_info, fallback_title=title)
+    if titles and track_id:
+        asyncio.create_task(save_track_titles(track_id, titles))
+
     # Try fetching richsync for word-level sync if track_id was matched
     try:
-        macro = (((payload or {}).get("message") or {}).get("body") or {}).get("macro_calls") or {}
-        track_info = (((macro.get("matcher.track.get") or {}).get("message") or {}).get("body") or {}).get("track") or {}
         mxm_track_id = track_info.get("track_id")
         current_token = params.get("usertoken")
         if mxm_track_id and current_token:
@@ -359,6 +659,7 @@ async def fetch_track_lyrics_from_musixmatch(*, track: dict) -> dict:
                             "kind": "richsync",
                             "source": "musixmatch",
                             "spotify_track_id": spotify_track_id,
+                            **({"titles": titles} if titles is not None else {}),
                             **({"musixmatch": debug_payload} if debug_payload is not None else {}),
                         }
     except Exception:
@@ -372,6 +673,7 @@ async def fetch_track_lyrics_from_musixmatch(*, track: dict) -> dict:
             "kind": "synced",
             "source": "musixmatch",
             "spotify_track_id": spotify_track_id,
+            **({"titles": titles} if titles is not None else {}),
             **({"musixmatch": debug_payload} if debug_payload is not None else {}),
         }
 
@@ -383,6 +685,7 @@ async def fetch_track_lyrics_from_musixmatch(*, track: dict) -> dict:
             "kind": "plain",
             "source": "musixmatch",
             "spotify_track_id": spotify_track_id,
+            **({"titles": titles} if titles is not None else {}),
             **({"musixmatch": debug_payload} if debug_payload is not None else {}),
         }
 
@@ -390,5 +693,7 @@ async def fetch_track_lyrics_from_musixmatch(*, track: dict) -> dict:
         "ok": False,
         "error": "no_lyrics",
         "spotify_track_id": spotify_track_id,
+        **({"titles": titles} if titles is not None else {}),
         **({"musixmatch": debug_payload} if debug_payload is not None else {}),
     }
+

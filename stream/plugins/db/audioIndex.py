@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import re
 import time
@@ -671,16 +672,19 @@ def _split_artists(value: str) -> list[str]:
 
 
 def _slugify(value: str) -> str:
-    s = (value or "").strip().lower()
-    if not s:
+    raw = (value or "").strip().lower()
+    if not raw:
         return ""
-    s = s.replace("÷", " divide ").replace("&", " and ").replace("+", " plus ")
+    s = raw.replace("÷", " divide ").replace("&", " and ").replace("+", " plus ")
     s = unicodedata.normalize("NFKD", s)
     s = s.encode("ascii", "ignore").decode("ascii")
     s = _ALBUM_SLUG_RE.sub(" ", s)
     s = re.sub(r"\s+", "_", s.strip())
     s = re.sub(r"_+", "_", s).strip("_")
-    return s
+    if s:
+        return s
+    h = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    return f"u_{h}"
 
 
 def _coerce_year(value) -> int | None:
@@ -988,9 +992,11 @@ async def _enrich_audio_doc(
         artists = _split_artists(performer)
         if artists:
             audio_doc["artists"] = artists
+    effective_album = album or title
     if album:
         audio_doc["album"] = album
-        aid = _album_id(album=album, year=_coerce_year(audio_doc.get("year")))
+    if effective_album:
+        aid = _album_id(album=effective_album, year=_coerce_year(audio_doc.get("year")))
         if aid:
             audio_doc["album_id"] = aid
 
@@ -1310,11 +1316,13 @@ async def _enrich_audio_doc(
         if lyrics_enabled:
             existing2 = None
             try:
-                existing2 = await col.read_document(target_id, projection={"lyrics": 1})
+                existing2 = await col.read_document(target_id, projection={"lyrics": 1, "titles": 1})
             except Exception:
                 existing2 = None
             existing_lyrics = (existing2 or {}).get("lyrics")
             has_lyrics = isinstance(existing_lyrics, str) and existing_lyrics.strip()
+            has_titles = bool((existing2 or {}).get("titles"))
+
             if not has_lyrics:
                 from Api.services.lyrics_service import get_track_lyrics
 
@@ -1322,6 +1330,12 @@ async def _enrich_audio_doc(
                     lyrics_result = await asyncio.wait_for(get_track_lyrics(target_id), timeout=5.0)
                 except Exception as le:
                     lyrics_result = {"ok": False, "error": str(le)}
+            elif not has_titles and bool(getattr(Config, "MUSIXMATCH", True)):
+                try:
+                    from Api.services.musixmatch import fetch_and_save_musixmatch_titles
+                    asyncio.create_task(fetch_and_save_musixmatch_titles(track_id=target_id))
+                except Exception:
+                    pass
     except Exception as e:
         LOG.warning(f"[index] lyrics fetch failed for {target_id!r}: {e}")
 

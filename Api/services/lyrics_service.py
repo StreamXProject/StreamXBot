@@ -217,7 +217,7 @@ async def get_track_lyrics(track_id: str, provider: str | None = None) -> dict:
     col = get_audio_tracks_collection()
     doc = await col.find_one(
         {"_id": track_id},
-        projection={"audio": 1, "telegram": 1, "spotify": 1, "lyrics": 1, "lyrics_cache": 1},
+        projection={"audio": 1, "telegram": 1, "spotify": 1, "lyrics": 1, "lyrics_cache": 1, "titles": 1},
     )
     if not doc:
         raise HTTPException(status_code=404, detail="track not found")
@@ -232,6 +232,14 @@ async def get_track_lyrics(track_id: str, provider: str | None = None) -> dict:
 
     if not title:
         return {"ok": False, "error": "missing_title"}
+
+    # If titles (romanized / translations) not yet indexed, enrich in background via Musixmatch
+    if not doc.get("titles") and bool(getattr(Config, "MUSIXMATCH", True)):
+        try:
+            from Api.services.musixmatch import fetch_and_save_musixmatch_titles
+            asyncio.create_task(fetch_and_save_musixmatch_titles(track_id=track_id, track=doc))
+        except Exception:
+            pass
 
     provider_clean = (provider or "").strip().lower()
     cached_url = _clean_telegraph_url(doc.get("lyrics") if isinstance(doc.get("lyrics"), str) else "")
@@ -264,16 +272,18 @@ async def get_track_lyrics(track_id: str, provider: str | None = None) -> dict:
     async def _save_to_cache(res_dict: dict) -> None:
         try:
             col_t = get_audio_tracks_collection()
+            update_fields: dict[str, Any] = {
+                "lyrics_cache.text": str(res_dict.get("lyrics") or ""),
+                "lyrics_cache.kind": str(res_dict.get("kind") or ""),
+                "lyrics_cache.source": str(res_dict.get("source") or "unknown"),
+                "lyrics_cache.updated_at": __import__("time").time(),
+            }
+            if res_dict.get("titles"):
+                update_fields["titles"] = res_dict["titles"]
+                update_fields["audio.titles"] = res_dict["titles"]
             await col_t.update_one(
                 {"_id": track_id},
-                {
-                    "$set": {
-                        "lyrics_cache.text": str(res_dict.get("lyrics") or ""),
-                        "lyrics_cache.kind": str(res_dict.get("kind") or ""),
-                        "lyrics_cache.source": str(res_dict.get("source") or "unknown"),
-                        "lyrics_cache.updated_at": __import__("time").time(),
-                    }
-                },
+                {"$set": update_fields},
                 upsert=False,
             )
             if cached_url:

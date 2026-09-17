@@ -5,6 +5,7 @@ class TgLoginRequest(BaseModel):
     init_data: str
     username: str | None = None
     password: str | None = None
+    invite_code: str | None = None
 
 
 class PasswordLoginRequest(BaseModel):
@@ -62,6 +63,10 @@ class TelegramWidgetLoginRequest(BaseModel):
 
 class TelegramTokenLoginRequest(BaseModel):
     id_token: str
+    invite_code: str | None = None
+
+
+class TelegramBotSessionRequest(BaseModel):
     invite_code: str | None = None
 
 

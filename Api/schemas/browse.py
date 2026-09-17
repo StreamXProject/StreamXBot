@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 class BrowseItem(BaseModel):
@@ -17,6 +19,7 @@ class BrowseItem(BaseModel):
     sampling_rate_hz: int | None = None
     spotify_url: str | None = None
     cover_url: str | None = None
+    titles: dict[str, Any] | None = None
     created_at: float | None = None
     updated_at: float | None = None
     liked: bool = False

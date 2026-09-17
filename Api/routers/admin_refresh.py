@@ -1,3 +1,5 @@
+import asyncio
+import hashlib
 import re
 import time
 import unicodedata
@@ -45,10 +47,10 @@ def _split_artists(value: str) -> list[str]:
 
 
 def _normalize_album_id_part(text: str) -> str:
-    s = (text or "").strip().lower()
-    if not s:
+    raw = (text or "").strip().lower()
+    if not raw:
         return ""
-    s = s.replace("÷", " divide ")
+    s = raw.replace("÷", " divide ")
     s = s.replace("&", " and ")
     s = s.replace("+", " plus ")
     s = unicodedata.normalize("NFKD", s)
@@ -56,7 +58,10 @@ def _normalize_album_id_part(text: str) -> str:
     s = re.sub(r"[^a-z0-9 ]", " ", s)
     s = re.sub(r"\s+", "_", s.strip())
     s = re.sub(r"_+", "_", s).strip("_")
-    return s
+    if s:
+        return s
+    h = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    return f"u_{h}"
 
 
 def _coerce_year(value: object) -> int | None:
@@ -598,3 +603,64 @@ async def rebuild_albums_from_tracks(payload: RebuildAlbumsFromTracksRequest, _:
         "album_groups": int(album_groups),
         "albums_upserted": int(albums_upserted),
     }
+
+
+class ReverifyTracksRequest(BaseModel):
+    force_all: bool = False
+    missing_titles: bool = True
+    missing_lyrics: bool = False
+    unenriched_only: bool = False
+    limit: int = 0
+    concurrency: int = 2
+    background: bool = True
+
+
+@router.post("/tracks/reverify")
+async def trigger_reverify_tracks(
+    payload: ReverifyTracksRequest,
+    _: int = Depends(require_admin_user_id),
+):
+    from Api.services.reverify_service import reverify_tracks, get_reverify_status
+
+    status = get_reverify_status()
+    if status.get("running"):
+        return {"ok": False, "error": "already_running", "status": status}
+
+    if payload.background:
+        asyncio.create_task(
+            reverify_tracks(
+                force_all=payload.force_all,
+                missing_titles=payload.missing_titles,
+                missing_lyrics=payload.missing_lyrics,
+                unenriched_only=payload.unenriched_only,
+                limit=payload.limit,
+                concurrency=payload.concurrency,
+            )
+        )
+        return {"ok": True, "message": "Reverify job started in background", "background": True}
+
+    res = await reverify_tracks(
+        force_all=payload.force_all,
+        missing_titles=payload.missing_titles,
+        missing_lyrics=payload.missing_lyrics,
+        unenriched_only=payload.unenriched_only,
+        limit=payload.limit,
+        concurrency=payload.concurrency,
+    )
+    return res
+
+
+@router.get("/tracks/reverify/status")
+async def get_reverify_tracks_status(_: int = Depends(require_admin_user_id)):
+    from Api.services.reverify_service import get_reverify_status
+
+    return get_reverify_status()
+
+
+@router.post("/tracks/reverify/cancel")
+async def cancel_reverify_tracks(_: int = Depends(require_admin_user_id)):
+    from Api.services.reverify_service import cancel_reverify_job
+
+    cancelled = cancel_reverify_job()
+    return {"ok": True, "cancelled": cancelled}
+

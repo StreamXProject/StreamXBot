@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 import time
 import re
 import json
@@ -36,30 +37,28 @@ from stream.database.MongoDb import db_handler
 router = APIRouter()
 
 _ALBUM_SLUG_RE = re.compile(r"[^a-z0-9]+", flags=re.I)
-
-
-def _slugify(value: str) -> str:
-    s = (value or "").strip().lower()
-    if not s:
-        return ""
-    s = _ALBUM_SLUG_RE.sub("_", s)
-    s = re.sub(r"_+", "_", s).strip("_")
-    return s
+_ALBUMS_REFRESH_LOCK = asyncio.Lock()
+_ARTISTS_REFRESH_LOCK = asyncio.Lock()
 
 
 def _normalize_album_id_part(text: str) -> str:
-    s = (text or "").strip().lower()
-    if not s:
+    raw = (text or "").strip().lower()
+    if not raw:
         return ""
-    s = s.replace("÷", " divide ")
-    s = s.replace("&", " and ")
-    s = s.replace("+", " plus ")
+    s = raw.replace("÷", " divide ").replace("&", " and ").replace("+", " plus ")
     s = unicodedata.normalize("NFKD", s)
     s = s.encode("ascii", "ignore").decode("ascii")
     s = re.sub(r"[^a-z0-9 ]", " ", s)
     s = re.sub(r"\s+", "_", s.strip())
     s = re.sub(r"_+", "_", s).strip("_")
-    return s
+    if s:
+        return s
+    h = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    return f"u_{h}"
+
+
+def _slugify(value: str) -> str:
+    return _normalize_album_id_part(value)
 
 
 def _coerce_year(value: Any) -> int | None:
@@ -534,103 +533,106 @@ def _parse_shazam_artist_detail_json(data: Any) -> dict[str, Any]:
 
 
 async def _refresh_albums_cache(*, limit_albums: int = 2000) -> dict[str, int]:
-    limit_albums = int(limit_albums)
-    if limit_albums <= 0:
-        limit_albums = 2000
-    if limit_albums > 5000:
-        limit_albums = 5000
+    if _ALBUMS_REFRESH_LOCK.locked():
+        return {"processed": 0, "upserted": 0}
+    async with _ALBUMS_REFRESH_LOCK:
+        limit_albums = int(limit_albums)
+        if limit_albums <= 0:
+            limit_albums = 2000
+        if limit_albums > 5000:
+            limit_albums = 5000
 
-    tracks_col = get_audio_tracks_collection()
-    pipeline = [
-        {
-            "$match": {
-                "deleted": {"$ne": True},
-                "audio.album_id": {"$exists": True, "$ne": ""},
-                "$or": [{"audio.album": {"$exists": True, "$ne": ""}}, {"audio.title": {"$exists": True, "$ne": ""}}],
-            }
-        },
-        {
-            "$addFields": {
-                "_aid": "$audio.album_id",
-                "_album_title": {"$ifNull": ["$audio.album", "$audio.title"]},
-                "_album_artist": {
-                    "$cond": [
-                        {"$and": [{"$isArray": "$audio.artists"}, {"$gt": [{"$size": "$audio.artists"}, 0]}]},
-                        {"$arrayElemAt": ["$audio.artists", 0]},
-                        {"$ifNull": ["$audio.artist", "$audio.performer"]},
-                    ]
-                },
-            }
-        },
-        {
-            "$addFields": {
-                "_album_norm": {"$toLower": {"$trim": {"input": "$_album_title"}}},
-                "_artist_norm": {"$toLower": {"$trim": {"input": "$_album_artist"}}},
-            }
-        },
-        {"$sort": {"updated_at": -1}},
-        {
-            "$group": {
-                "_id": "$_aid",
-                "title": {"$first": "$_album_title"},
-                "artist": {"$first": "$_album_artist"},
-                "cover_url": {"$first": {"$ifNull": ["$spotify.big_cover_url", "$spotify.cover_url"]}},
-                "tracks_count": {"$sum": 1},
-                "duration_total": {"$sum": {"$ifNull": ["$audio.duration_sec", 0]}},
-                "updated_at": {"$max": "$updated_at"},
-                "match_album": {"$first": "$_album_norm"},
-                "match_artist": {"$first": "$_artist_norm"},
-            }
-        },
-        {"$sort": {"updated_at": -1}},
-        {"$limit": int(limit_albums)},
-    ]
-    cur = await tracks_col.aggregate(pipeline)
-
-    albums_col = db_handler.get_collection("albums").collection
-    now = time.time()
-    upserted = 0
-    processed = 0
-    async for row in cur:
-        processed += 1
-        if not isinstance(row, dict):
-            continue
-        aid = (row.get("_id") or "").strip()
-        title = (row.get("title") or "").strip()
-        artist = (row.get("artist") or "").strip()
-        artists = _split_artists(artist) if artist else []
-        cover_url = _clean_url(row.get("cover_url"))
-        tracks_count = int(row.get("tracks_count") or 0)
-        duration_total = int(row.get("duration_total") or 0)
-        updated_at = float(row.get("updated_at") or 0.0)
-        match_album = (row.get("match_album") or "").strip()
-        match_artist = (row.get("match_artist") or "").strip()
-
-        if not aid or not title or not match_album:
-            continue
-
-        res = await albums_col.update_one(
-            {"_id": aid},
+        tracks_col = get_audio_tracks_collection()
+        pipeline = [
             {
-                "$setOnInsert": {"created_at": now},
-                "$set": {
-                    "title": title,
-                    "artist": artist or None,
-                    "artists": artists if artists else None,
-                    "cover_url": cover_url or None,
-                    "tracks_count": tracks_count,
-                    "duration_total": duration_total,
-                    "match_album": match_album,
-                    "match_artist": match_artist or None,
-                    "updated_at": updated_at or now,
-                },
+                "$match": {
+                    "deleted": {"$ne": True},
+                    "audio.album_id": {"$exists": True, "$ne": ""},
+                    "$or": [{"audio.album": {"$exists": True, "$ne": ""}}, {"audio.title": {"$exists": True, "$ne": ""}}],
+                }
             },
-            upsert=True,
-        )
-        if getattr(res, "upserted_id", None) is not None:
-            upserted += 1
+            {
+                "$addFields": {
+                    "_aid": "$audio.album_id",
+                    "_album_title": {"$ifNull": ["$audio.album", "$audio.title"]},
+                    "_album_artist": {
+                        "$cond": [
+                            {"$and": [{"$isArray": "$audio.artists"}, {"$gt": [{"$size": "$audio.artists"}, 0]}]},
+                            {"$arrayElemAt": ["$audio.artists", 0]},
+                            {"$ifNull": ["$audio.artist", "$audio.performer"]},
+                        ]
+                    },
+                }
+            },
+            {
+                "$addFields": {
+                    "_album_norm": {"$toLower": {"$trim": {"input": "$_album_title"}}},
+                    "_artist_norm": {"$toLower": {"$trim": {"input": "$_album_artist"}}},
+                }
+            },
+            {"$sort": {"updated_at": -1}},
+            {
+                "$group": {
+                    "_id": "$_aid",
+                    "title": {"$first": "$_album_title"},
+                    "artist": {"$first": "$_album_artist"},
+                    "cover_url": {"$first": {"$ifNull": ["$spotify.big_cover_url", "$spotify.cover_url"]}},
+                    "tracks_count": {"$sum": 1},
+                    "duration_total": {"$sum": {"$ifNull": ["$audio.duration_sec", 0]}},
+                    "updated_at": {"$max": "$updated_at"},
+                    "match_album": {"$first": "$_album_norm"},
+                    "match_artist": {"$first": "$_artist_norm"},
+                }
+            },
+            {"$sort": {"updated_at": -1}},
+            {"$limit": int(limit_albums)},
+        ]
+        cur = await tracks_col.aggregate(pipeline)
 
-    return {"processed": processed, "upserted": upserted}
+        albums_col = db_handler.get_collection("albums").collection
+        now = time.time()
+        upserted = 0
+        processed = 0
+        async for row in cur:
+            processed += 1
+            if not isinstance(row, dict):
+                continue
+            aid = (row.get("_id") or "").strip()
+            title = (row.get("title") or "").strip()
+            artist = (row.get("artist") or "").strip()
+            artists = _split_artists(artist) if artist else []
+            cover_url = _clean_url(row.get("cover_url"))
+            tracks_count = int(row.get("tracks_count") or 0)
+            duration_total = int(row.get("duration_total") or 0)
+            updated_at = float(row.get("updated_at") or 0.0)
+            match_album = (row.get("match_album") or "").strip()
+            match_artist = (row.get("match_artist") or "").strip()
+
+            if not aid or not title or not match_album:
+                continue
+
+            res = await albums_col.update_one(
+                {"_id": aid},
+                {
+                    "$setOnInsert": {"created_at": now},
+                    "$set": {
+                        "title": title,
+                        "artist": artist or None,
+                        "artists": artists if artists else None,
+                        "cover_url": cover_url or None,
+                        "tracks_count": tracks_count,
+                        "duration_total": duration_total,
+                        "match_album": match_album,
+                        "match_artist": match_artist or None,
+                        "updated_at": updated_at or now,
+                    },
+                },
+                upsert=True,
+            )
+            if getattr(res, "upserted_id", None) is not None:
+                upserted += 1
+
+        return {"processed": processed, "upserted": upserted}
 
 
 def _is_default_deezer_avatar(url: str | None) -> bool:
@@ -714,19 +716,20 @@ async def _fetch_artist_avatar(client: httpx.AsyncClient, name: str, track_title
 
 
 async def _refresh_artists_cache(*, limit_tracks: int = 20000, limit_artists: int = 5000) -> dict[str, int]:
-    limit_tracks = int(limit_tracks)
-    if limit_tracks <= 0:
-        limit_tracks = 20000
-    if limit_tracks > 100_000:
-        limit_tracks = 100_000
+    async with _ARTISTS_REFRESH_LOCK:
+        limit_tracks = int(limit_tracks)
+        if limit_tracks <= 0:
+            limit_tracks = 20000
+        if limit_tracks > 100_000:
+            limit_tracks = 100_000
 
-    limit_artists = int(limit_artists)
-    if limit_artists <= 0:
-        limit_artists = 5000
-    if limit_artists > 20_000:
-        limit_artists = 20_000
+        limit_artists = int(limit_artists)
+        if limit_artists <= 0:
+            limit_artists = 5000
+        if limit_artists > 20_000:
+            limit_artists = 20_000
 
-    tracks_col = get_audio_tracks_collection()
+        tracks_col = get_audio_tracks_collection()
     cursor = (
         tracks_col.find(
             {
@@ -841,7 +844,7 @@ async def _refresh_artists_cache(*, limit_tracks: int = 20000, limit_artists: in
             if getattr(res, "upserted_id", None) is not None:
                 upserted += 1
 
-    return {"scanned_tracks": scanned, "processed_artists": processed, "upserted": upserted}
+        return {"scanned_tracks": scanned, "processed_artists": processed, "upserted": upserted}
 
 
 
@@ -1202,7 +1205,28 @@ async def list_albums(
     except Exception:
         existing = 0
 
-    if refresh or existing <= 0:
+    tracks_col = get_audio_tracks_collection()
+    should_refresh = bool(refresh) or existing <= 0
+    if not should_refresh:
+        try:
+            latest_track = await tracks_col.find_one(
+                {"deleted": {"$ne": True}, "audio.album_id": {"$exists": True, "$ne": ""}},
+                projection={"updated_at": 1},
+                sort=[("updated_at", -1)],
+            )
+            latest_album = await albums_col.find_one(
+                {},
+                projection={"updated_at": 1},
+                sort=[("updated_at", -1)],
+            )
+            track_ts = float((latest_track or {}).get("updated_at") or 0.0)
+            album_ts = float((latest_album or {}).get("updated_at") or 0.0)
+            if track_ts > album_ts:
+                should_refresh = True
+        except Exception:
+            pass
+
+    if should_refresh:
         await _refresh_albums_cache(limit_albums=5000 if refresh else 2000)
         try:
             existing = int(await albums_col.estimated_document_count())
@@ -1357,7 +1381,28 @@ async def list_artists(
     except Exception:
         existing = 0
 
-    if refresh or existing <= 0:
+    tracks_col = get_audio_tracks_collection()
+    should_refresh = bool(refresh) or existing <= 0
+    if not should_refresh:
+        try:
+            latest_track = await tracks_col.find_one(
+                {"deleted": {"$ne": True}},
+                projection={"updated_at": 1},
+                sort=[("updated_at", -1)],
+            )
+            latest_artist = await artists_col.find_one(
+                {},
+                projection={"updated_at": 1},
+                sort=[("updated_at", -1)],
+            )
+            track_ts = float((latest_track or {}).get("updated_at") or 0.0)
+            artist_ts = float((latest_artist or {}).get("updated_at") or 0.0)
+            if track_ts > artist_ts:
+                should_refresh = True
+        except Exception:
+            pass
+
+    if should_refresh:
         await _refresh_artists_cache(limit_tracks=100_000 if refresh else 20_000, limit_artists=20_000 if refresh else 5_000)
         try:
             existing = int(await artists_col.estimated_document_count())

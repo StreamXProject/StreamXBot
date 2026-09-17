@@ -73,6 +73,12 @@ class SPAMiddleware(BaseHTTPMiddleware):
 
         index_file = os.path.join(self.dist_dir, "index.html")
         if os.path.isfile(index_file):
-            return FileResponse(index_file, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+            return FileResponse(
+                index_file,
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+                },
+            )
 
         return await call_next(request)

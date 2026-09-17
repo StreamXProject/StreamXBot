@@ -1,8 +1,10 @@
 import asyncio
 import copy
+import hashlib
 import os
 import re
 import time
+import unicodedata
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -48,14 +50,19 @@ def _coerce_text(value: Any) -> str:
 
 
 def _normalize_album_id_part(text: Any) -> str:
-    s = _coerce_text(text).lower()
-    if not s:
+    raw = _coerce_text(text).strip().lower()
+    if not raw:
         return ""
-    s = s.replace("÷", " divide ").replace("&", " and ").replace("+", " plus ")
+    s = raw.replace("÷", " divide ").replace("&", " and ").replace("+", " plus ")
+    s = unicodedata.normalize("NFKD", s)
+    s = s.encode("ascii", "ignore").decode("ascii")
     s = re.sub(r"[^a-z0-9 ]", " ", s)
     s = re.sub(r"\s+", "_", s.strip())
     s = re.sub(r"_+", "_", s).strip("_")
-    return s
+    if s:
+        return s
+    h = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    return f"u_{h}"
 
 
 def _is_generic_youtube_album(value: Any) -> bool:

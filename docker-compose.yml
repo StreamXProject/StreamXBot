@@ -15,5 +15,6 @@ services:
       - ./.env:/app/.env:ro
       - ./cookies:/app/cookies
       - ./stream_media:/app/stream_media
+      - ./dist:/app/dist:ro
 
     restart: on-failure

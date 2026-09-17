@@ -11,6 +11,7 @@ class TrackResponse(BaseModel):
     telegram: dict[str, Any] | None = None
     audio: dict[str, Any] | None = None
     spotify: dict[str, Any] | None = None
+    titles: dict[str, Any] | None = None
     content_hash: str | None = None
     fingerprint: str | None = None
     created_at: float | None = None

@@ -28,6 +28,7 @@ from Api.schemas.auth import (
     ValidateOTPRequest,
     TelegramWidgetLoginRequest,
     TelegramTokenLoginRequest,
+    TelegramBotSessionRequest,
     IntegrationsUpdateRequest,
 )
 from stream.helpers.logger import LOGGER
@@ -209,7 +210,9 @@ async def tg_login(
     existing_user = await col.find_one({"_id": tg_user_id})
     if not existing_user:
         try:
-            await access.assert_can_register(tg_user_id)
+            reg_ctx = await access.assert_can_register(tg_user_id, payload.invite_code)
+            if reg_ctx.get("invite_code"):
+                await access.consume_invite(reg_ctx["invite_code"], tg_user_id)
         except access.AccessDenied as denied:
             raise _access_http(denied)
 
@@ -239,7 +242,15 @@ async def tg_login(
     token = await _issue_user_token(tg_user_id, first_name=tg.get("first_name"), profile_url=tg.get("photo_url"))
     if set_cookie:
         _set_auth_cookie(response=response, token=token)
-    return {"ok": True, "user_id": tg_user_id, "token": token}
+    return {
+        "ok": True,
+        "user_id": tg_user_id,
+        "token": token,
+        "first_name": tg.get("first_name"),
+        "username": tg.get("username"),
+        "photo_url": tg.get("photo_url"),
+        "profile_url": tg.get("photo_url"),
+    }
 
 
 @router.post("/login")
@@ -1061,6 +1072,76 @@ async def telegram_callback(
             logger.warning("Telegram widget HMAC signature validation failed on callback query")
             return RedirectResponse(url=f"{frontend_base}/login?error=invalid_widget_signature", status_code=302)
 
+async def _resolve_tg_user_id_from_oidc_claims(claims: dict, col) -> int:
+    """
+    Extract the real numeric Telegram user ID from OIDC claims.
+    Telegram's OpenID Connect may return:
+      - raw ID in 'id', 'user_id', or 'telegram_id'
+      - or a 64-bit pairwise pseudonym / gateway hash in 'sub' (> 10^12, e.g. 1613754909805935052).
+    If the ID is missing or > 10^12, resolve the actual Telegram user ID:
+      1. Check existing MongoDB users by preferred_username or canon username.
+      2. Query running Pyrogram bot client: await bot.get_users(preferred_username).
+      3. Fallback to sub if all else fails.
+    """
+    raw_id = claims.get("id") or claims.get("user_id") or claims.get("telegram_id")
+    tg_user_id = 0
+    if raw_id is not None:
+        try:
+            tg_user_id = int(raw_id)
+        except Exception:
+            pass
+
+    preferred_username = (claims.get("preferred_username") or "").strip() or None
+
+    # If ID is not a normal Telegram user ID (< 1,000,000,000,000) and we have a username,
+    # resolve the user's real Telegram numeric ID:
+    if (tg_user_id <= 0 or tg_user_id > 1_000_000_000_000) and preferred_username:
+        # 1. Check existing user in MongoDB
+        try:
+            canon = _canon_username(preferred_username)
+            query: dict[str, list[dict]] = {
+                "$or": [
+                    {"telegram.username": {"$regex": f"^{re.escape(preferred_username)}$", "$options": "i"}}
+                ]
+            }
+            if canon:
+                query["$or"].append({"username": canon})
+            existing_u = await col.find_one(query, {"_id": 1, "telegram": 1})
+            if existing_u and existing_u.get("_id"):
+                found_id = int(existing_u["_id"])
+                if 0 < found_id < 1_000_000_000_000:
+                    logger.info(f"[Telegram Auth] Matched existing user ID {found_id} in DB by username @{preferred_username}")
+                    return found_id
+        except Exception as e:
+            logger.warning(f"[Telegram Auth] Error looking up DB user by @{preferred_username}: {e}")
+
+        # 2. Query Telegram Bot (Pyrogram)
+        try:
+            from stream import bot
+            if bot and getattr(bot, "is_connected", False):
+                u = await bot.get_users(preferred_username)
+                if u and getattr(u, "id", None):
+                    real_id = int(u.id)
+                    if 0 < real_id < 1_000_000_000_000:
+                        logger.info(f"[Telegram Auth] Resolved real Telegram user ID {real_id} via bot.get_users for @{preferred_username}")
+                        return real_id
+        except Exception as err:
+            logger.warning(f"[Telegram Auth] bot.get_users failed for @{preferred_username}: {err}")
+
+    if tg_user_id > 0:
+        return tg_user_id
+
+    sub = claims.get("sub")
+    try:
+        sub_id = int(sub)
+        if sub_id > 0:
+            return sub_id
+    except Exception:
+        pass
+
+    raise ValueError("Cannot extract valid Telegram user ID from claims")
+
+
     # 3. Standard OIDC Authorization Code Flow
     if code and state:
         oidc_col = db_handler.get_collection("oidc_sessions").collection
@@ -1132,13 +1213,12 @@ async def telegram_callback(
             logger.error(f"Telegram ID token validation failed: {e}")
             return RedirectResponse(url=f"{frontend_base}/login?error=invalid_id_token", status_code=302)
 
-        sub = claims.get("sub")
+        col = db_handler.get_collection("users").collection
+        logger.info(f"[Telegram Auth] OIDC callback received decoded claims: {claims}")
         try:
-            tg_user_id = int(sub)
-            if tg_user_id <= 0:
-                raise ValueError()
+            tg_user_id = await _resolve_tg_user_id_from_oidc_claims(claims, col)
         except Exception:
-            logger.error(f"Telegram claims sub is invalid: {sub}")
+            logger.error(f"Telegram claims sub is invalid: {claims}")
             return RedirectResponse(url=f"{frontend_base}/login?error=invalid_user_id", status_code=302)
 
         name = (claims.get("name") or "").strip()
@@ -1548,11 +1628,10 @@ async def telegram_validate_token(
         logger.error(f"[Telegram Auth] Telegram ID token validation failed: {e}")
         raise HTTPException(status_code=401, detail=f"invalid telegram ID token: {e}")
 
-    sub = claims.get("sub")
+    col = db_handler.get_collection("users").collection
+    logger.info(f"[Telegram Auth] /telegram/validate-token: decoded claims: {claims}")
     try:
-        tg_user_id = int(sub)
-        if tg_user_id <= 0:
-            raise ValueError()
+        tg_user_id = await _resolve_tg_user_id_from_oidc_claims(claims, col)
     except Exception:
         raise HTTPException(status_code=400, detail="invalid user identifier in token")
 
@@ -1561,8 +1640,9 @@ async def telegram_validate_token(
     picture = (claims.get("picture") or "").strip() or None
 
     now = time.time()
-    col = db_handler.get_collection("users").collection
     updates: dict = {
+        "user_id": tg_user_id,
+        "userid": tg_user_id,
         "telegram.id": tg_user_id,
         "updated_at": now,
     }
@@ -1623,4 +1703,141 @@ async def telegram_validate_token(
         "profile_url": picture,
         "photo_url": picture,
     }
+
+
+async def _authenticate_or_register_tg_user(
+    tg_user_id: int,
+    name: str | None = None,
+    username: str | None = None,
+    photo_url: str | None = None,
+    invite_code: str | None = None,
+) -> tuple[dict, str]:
+    """Helper to find or register a user by telegram_id and issue an auth token."""
+    now = time.time()
+    col = db_handler.get_collection("users").collection
+    updates: dict = {
+        "user_id": tg_user_id,
+        "userid": tg_user_id,
+        "telegram.id": tg_user_id,
+        "updated_at": now,
+    }
+    if name:
+        updates["first_name"] = name
+    if username:
+        updates["telegram.username"] = username
+    if photo_url:
+        updates["photo_url"] = photo_url
+        updates["profile_url"] = photo_url
+
+    existing = await col.find_one({"_id": tg_user_id}, {"username": 1, "first_name": 1, "photo_url": 1, "profile_url": 1})
+    if existing:
+        if not name and existing.get("first_name"):
+            name = existing.get("first_name")
+        if not photo_url:
+            photo_url = existing.get("profile_url") or existing.get("photo_url")
+    else:
+        try:
+            reg_ctx = await access.assert_can_register(tg_user_id, invite_code)
+            if reg_ctx.get("invite_code"):
+                await access.consume_invite(reg_ctx["invite_code"], tg_user_id)
+        except access.AccessDenied as denied:
+            raise _access_http(denied)
+        if username:
+            canon = _canon_username(username)
+            if canon:
+                u_conflict = await col.find_one({"username": canon, "_id": {"$ne": tg_user_id}}, {"_id": 1})
+                if not u_conflict:
+                    updates["username"] = canon
+                    updates["username_updated_at"] = now
+
+    set_on_insert = {
+        "created_at": now,
+        "token_version": 0,
+        "status": "active",
+        "registered_via": {"mode": (await access.get_policy())["registration_mode"], "invite_code": invite_code},
+    }
+    await col.update_one({"_id": tg_user_id}, {"$set": updates, "$setOnInsert": set_on_insert}, upsert=True)
+
+    token = await _issue_user_token(
+        tg_user_id,
+        first_name=name or username,
+        profile_url=photo_url,
+        photo_url=photo_url,
+    )
+
+    user_info = {
+        "user_id": tg_user_id,
+        "first_name": name,
+        "username": existing.get("username") if existing else (updates.get("username") or username),
+        "profile_url": photo_url,
+        "photo_url": photo_url,
+    }
+    return user_info, token
+
+
+@router.post("/telegram/bot-session")
+async def create_telegram_bot_session(
+    payload: TelegramBotSessionRequest | None = None,
+):
+    """Create a temporary session for direct Telegram app / bot login."""
+    session_id = f"auth_{secrets.token_urlsafe(16)}"
+    bot_username = await _get_bot_username()
+    now = time.time()
+    col = db_handler.get_collection("bot_auth_sessions").collection
+    await col.update_one(
+        {"_id": session_id},
+        {
+            "$set": {
+                "_id": session_id,
+                "status": "pending",
+                "invite_code": (payload.invite_code.strip().upper() if payload and payload.invite_code else None),
+                "created_at": now,
+                "expires_at": now + 600,
+            }
+        },
+        upsert=True,
+    )
+    tg_url = f"tg://resolve?domain={bot_username}&start={session_id}" if bot_username else ""
+    web_url = f"https://t.me/{bot_username}?start={session_id}" if bot_username else ""
+    return {
+        "ok": True,
+        "session_id": session_id,
+        "bot_username": bot_username,
+        "tg_url": tg_url,
+        "web_url": web_url,
+    }
+
+
+@router.get("/telegram/bot-session/status")
+async def check_telegram_bot_session_status(
+    session_id: str = Query(...),
+    response: Response = None,
+    set_cookie: bool = Query(default=True),
+):
+    """Check if the user has confirmed authorization inside the Telegram bot."""
+    col = db_handler.get_collection("bot_auth_sessions").collection
+    session = await col.find_one({"_id": session_id})
+    if not session:
+        return {"ok": False, "status": "not_found"}
+
+    now = time.time()
+    if session.get("expires_at", 0) < now and session.get("status") == "pending":
+        return {"ok": False, "status": "expired"}
+
+    if session.get("status") == "confirmed":
+        token = session.get("token")
+        if set_cookie and response and token:
+            _set_auth_cookie(response=response, token=token)
+        return {
+            "ok": True,
+            "status": "confirmed",
+            "token": token,
+            "user_id": session.get("user_id"),
+            "first_name": session.get("first_name"),
+            "username": session.get("username"),
+            "photo_url": session.get("photo_url"),
+            "profile_url": session.get("profile_url"),
+        }
+
+    return {"ok": True, "status": "pending"}
 
