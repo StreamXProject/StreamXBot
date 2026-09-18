@@ -535,7 +535,7 @@ async def fetch_artist_avatar_info(artist_name: str) -> dict | None:
             async with ClientSession() as session:
                 async with session.get(itunes_url, timeout=10) as resp:
                     if resp.status == 200:
-                        payload = await resp.json()
+                        payload = await _json_or_none(resp, label="itunes_artist")
                         results = (payload or {}).get("results") or []
                         if results and isinstance(results[0], dict):
                             first = results[0]

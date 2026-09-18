@@ -1,3 +1,4 @@
+import urllib.parse
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -22,7 +23,7 @@ async def list_topics(
     return await get_unique_topics(channel_id=channel_id, limit=limit, refresh=refresh)
 
 
-@router.get("/topics/{topic_name}/tracks", response_model=BrowseResponse)
+@router.get("/topics/{topic_name:path}/tracks", response_model=BrowseResponse)
 async def get_topic_tracks(
     topic_name: str,
     channel_id: Optional[int] = None,
@@ -35,7 +36,7 @@ async def get_topic_tracks(
     Browse tracks belonging to a unique topic_name.
     Optimized with compound index queries, lean projections, parallel count+find, and batch liked checks.
     """
-    clean_topic = (topic_name or "").strip()
+    clean_topic = urllib.parse.unquote(topic_name or "").strip()
     if not clean_topic:
         raise HTTPException(status_code=400, detail="topic_name is required")
 

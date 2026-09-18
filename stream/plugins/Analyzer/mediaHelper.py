@@ -1219,7 +1219,7 @@ async def _download_telegram(reply: Message, media, file_path: str) -> int | Non
 async def generate_mediainfo(
     message: Message, link: str | None = None, reply: Message | None = None, media=None
 ):
-    status = await message.reply_text("Generating MediaInfo...", quote=True)
+    status = await message.reply_text("Generating MediaInfo...")
     file_path = cover_path = None
 
     try:
@@ -1301,9 +1301,9 @@ async def spotify_search_handler(_, message: Message):
         ).strip()
 
     if not query:
-        return await message.reply_text("Usage:\n/search <query>", quote=True)
+        return await message.reply_text("Usage:\n/search <query>")
 
-    status = await message.reply_text("Searching...", quote=True)
+    status = await message.reply_text("Searching...")
 
     try:
         track = await spotify_search_track(query)
@@ -1351,12 +1351,12 @@ async def spotify_search_handler(_, message: Message):
             return
 
         try:
-            await message.reply_photo(photo=cover_url, caption=caption, quote=True)
+            await message.reply_photo(photo=cover_url, caption=caption)
         except Exception:
             data = await _fetch_bytes(cover_url)
             bio = io.BytesIO(data)
             bio.name = "cover.jpg"
-            await message.reply_photo(photo=bio, caption=caption, quote=True)
+            await message.reply_photo(photo=bio, caption=caption)
 
         await status.delete()
 

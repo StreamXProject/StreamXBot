@@ -182,6 +182,15 @@ async def refresh_user_profiles(*, limit_users: int = 2000) -> dict[str, int | b
     return {"ok": True, "scanned": scanned, "updated": updated, "failed": failed}
 
 
+def _coerce_int(value):
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except Exception:
+        return None
+
+
 async def reconcile_deleted_tracks(*, limit_tracks: int = 500) -> dict[str, int | bool | str]:
     if bot is None:
         return {"ok": False, "skipped": True, "reason": "bot disabled"}
@@ -195,10 +204,18 @@ async def reconcile_deleted_tracks(*, limit_tracks: int = 500) -> dict[str, int 
         col.find(
             {
                 "deleted": {"$ne": True},
-                "source_chat_id": {"$exists": True},
-                "source_message_id": {"$exists": True},
+                "$or": [
+                    {"cache_chat_id": {"$exists": True}},
+                    {"source_chat_id": {"$exists": True}},
+                ],
             },
-            {"_id": 1, "source_chat_id": 1, "source_message_id": 1},
+            {
+                "_id": 1,
+                "source_chat_id": 1,
+                "source_message_id": 1,
+                "cache_chat_id": 1,
+                "cache_message_id": 1,
+            },
         )
         .sort([("updated_at", -1)])
         .limit(int(limit_tracks))
@@ -210,30 +227,52 @@ async def reconcile_deleted_tracks(*, limit_tracks: int = 500) -> dict[str, int 
 
     async for doc in cursor:
         scanned += 1
-        try:
-            chat_id = int(doc.get("source_chat_id") or 0)
-            message_id = int(doc.get("source_message_id") or 0)
-        except Exception:
-            continue
-        if chat_id == 0 or message_id <= 0:
+        c_chat = _coerce_int(doc.get("cache_chat_id"))
+        c_msg = _coerce_int(doc.get("cache_message_id"))
+        s_chat = _coerce_int(doc.get("source_chat_id"))
+        s_msg = _coerce_int(doc.get("source_message_id"))
+
+        if (not c_chat or not c_msg) and (not s_chat or not s_msg):
             continue
 
         ok = False
-        try:
-            msg = await bot.get_messages(chat_id, message_id)
-            media = getattr(msg, "audio", None) or getattr(msg, "document", None)
-            ok = bool(media)
-        except Exception as e:
-            msg_str = str(e).upper()
-            if "MESSAGE_ID_INVALID" in msg_str or "MSG_ID_INVALID" in msg_str or "MESSAGE_NOT_FOUND" in msg_str:
-                ok = False
-            else:
-                failed += 1
-                continue
+
+        # 1. Primary check: verify media in the cache / DB storage channel (where files are streamed from)
+        if c_chat and c_msg:
+            try:
+                msg = await bot.get_messages(c_chat, c_msg)
+                if msg and not getattr(msg, "empty", False):
+                    media = getattr(msg, "audio", None) or getattr(msg, "document", None)
+                    if media:
+                        ok = True
+            except Exception as e:
+                msg_str = str(e).upper()
+                if not any(err in msg_str for err in ("MESSAGE_ID_INVALID", "MSG_ID_INVALID", "MESSAGE_NOT_FOUND")):
+                    failed += 1
+                    continue
 
         if ok:
             continue
 
+        # 2. Secondary check: check source message via _fetch_message (which checks userbot, then bot)
+        if s_chat and s_msg:
+            try:
+                from stream.plugins.db.audioIndex import _fetch_message
+                msg = await _fetch_message(s_chat, s_msg)
+                if msg and not getattr(msg, "empty", False):
+                    media = getattr(msg, "audio", None) or getattr(msg, "document", None)
+                    if media:
+                        ok = True
+            except Exception as e:
+                msg_str = str(e).upper()
+                if not any(err in msg_str for err in ("MESSAGE_ID_INVALID", "MSG_ID_INVALID", "MESSAGE_NOT_FOUND")):
+                    failed += 1
+                    continue
+
+        if ok:
+            continue
+
+        # Only mark deleted if both cache and source checks definitively failed to confirm media
         try:
             await col.update_one(
                 {"_id": doc.get("_id")},

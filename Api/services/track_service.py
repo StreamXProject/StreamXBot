@@ -3,6 +3,7 @@ import random
 import datetime
 import hashlib
 import time
+import urllib.parse
 from typing import Any, Optional
 import inspect
 import asyncio
@@ -290,7 +291,7 @@ async def get_unique_topics(
             "normal_thumbnail": cover or None,
             "thumbnails": unique_thumbs,
             "source_chat_id": d.get("source_chat_id"),
-            "endpoint": f"/topics/{name}/tracks",
+            "endpoint": f"/topics/{urllib.parse.quote(name, safe='')}/tracks",
         })
 
     result = {

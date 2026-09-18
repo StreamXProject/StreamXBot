@@ -629,6 +629,31 @@ async def _source_metadata_from_message(message: Message) -> dict:
     if topic_id is None:
         topic_id = 0
 
+    if (not topic_name or topic_name.startswith("topic_")) and int(topic_id) != 0:
+        lookup_chat = source_chat_id or cache_chat_id
+        if lookup_chat:
+            try:
+                fdoc = await db_handler.get_collection("forum_topics").collection.find_one(
+                    {"_id": f"{int(lookup_chat)}:{int(topic_id)}"}
+                )
+                if fdoc and fdoc.get("topic_name"):
+                    topic_name = str(fdoc["topic_name"]).strip()
+            except Exception:
+                pass
+
+        if not topic_name or topic_name.startswith("topic_"):
+            try:
+                from stream.plugins.userBot.service import _USERBOT_INSTANCE, _resolve_topic_name
+
+                if _USERBOT_INSTANCE and lookup_chat:
+                    resolved = await _resolve_topic_name(
+                        _USERBOT_INSTANCE, lookup_chat, int(topic_id), message=message
+                    )
+                    if resolved and not resolved.startswith("topic_"):
+                        topic_name = resolved
+            except Exception:
+                pass
+
     if not topic_name:
         topic_name = "main" if int(topic_id) == 0 else f"topic_{int(topic_id)}"
 
@@ -1041,8 +1066,14 @@ async def _enrich_audio_doc(
     async def _fetch_avatar():
         if not performer:
             return None
+        primary_artist = artists[0] if (artists and isinstance(artists, list)) else performer
         try:
-            return await fetch_artist_avatar_info(performer)
+            res = await fetch_artist_avatar_info(primary_artist)
+            if res and res.get("avatar_url"):
+                return res
+            if primary_artist != performer:
+                return await fetch_artist_avatar_info(performer)
+            return res
         except Exception as ae:
             _dbg(f"[artist] failed to fetch artist avatar: {ae}")
             return None

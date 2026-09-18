@@ -12,9 +12,9 @@ async def log(_, message: Message):
     log_path = "log.txt"
     
     if not os.path.exists(log_path):
-        return await message.reply_text("Log file not found!", quote=True)
+        return await message.reply_text("Log file not found!")
 
-    processing_msg = await message.reply_text("Processing logs...", quote=True)
+    processing_msg = await message.reply_text("Processing logs...")
 
     try:
         buttons = InlineKeyboardMarkup([
@@ -26,7 +26,6 @@ async def log(_, message: Message):
             log_path,
             caption="Log File",
             reply_markup=buttons,
-            quote=True
         )
         
         await processing_msg.delete()

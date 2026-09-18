@@ -185,7 +185,7 @@ async def pull_updates(msg=None):
         return None
 
 async def update(_, message: Message):
-    msg = await message.reply_text("Checking for updates...", quote=True)
+    msg = await message.reply_text("Checking for updates...")
     info = await check_for_updates()
     if not info or not info.get("updates_available"):
         await msg.edit("No updates available. Already on the latest version.")
@@ -258,7 +258,7 @@ async def restart_notification():
 async def restart_bot(_, message: Message):
     user_id = message.from_user.id if message.from_user else None
     if not user_id or not await _has_config_access(user_id):
-        await message.reply_text("Access denied.", quote=True)
+        await message.reply_text("Access denied.")
         return
     buttons = [
         [InlineKeyboardButton("Restart Only", callback_data="confirm_restart restart"), InlineKeyboardButton("Update & Restart", callback_data="confirm_restart update")],

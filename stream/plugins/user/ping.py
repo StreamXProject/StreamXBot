@@ -11,7 +11,7 @@ from stream.helpers.functions import get_readable_time
 @bot.on_message(filters.command(["ping", "alive"]))
 async def ping(_, message: Message):
 
-    pong_reply = await message.reply_text("ping!", quote=True)
+    pong_reply = await message.reply_text("ping!")
 
     start = datetime.now()
     await pong_reply.edit("pong!")   
