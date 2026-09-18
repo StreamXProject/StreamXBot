@@ -149,6 +149,8 @@ async def _enrichment_loop(worker_id: int):
                     f"Enrichment worker {worker_id} failed on {chat_id}:{msg_id}: {e}"
                 )
                 await _mark_enrichment_retry(doc["_id"], str(e))
+            finally:
+                await asyncio.sleep(0.5)
 
         except asyncio.CancelledError:
             break
@@ -163,9 +165,12 @@ def start_enrichment_workers():
         LOG.info(f"Enrichment workers already running: {len(_ENRICH_WORKERS)}")
         return
 
-    workers = int(getattr(Config, "ENRICHMENT_WORKERS", getattr(Config, "PROCESSING_CONTENT", 16)))
+    workers = int(getattr(Config, "ENRICHMENT_WORKERS", getattr(Config, "PROCESSING_CONTENT", 2)))
     if workers <= 0:
-        workers = 16
+        workers = 2
+    # Cap workers at 4 to protect against event loop saturation and API bans
+    if workers > 4:
+        workers = 4
     for i in range(workers):
         task = asyncio.create_task(_enrichment_loop(i))
         _ENRICH_WORKERS.append(task)

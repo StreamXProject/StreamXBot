@@ -149,7 +149,7 @@ USERBOT_BATCH_SIZE = int(os.getenv("USERBOT_BATCH_SIZE", "50"))
 USERBOT_BATCH_COOLDOWN_SEC = float(os.getenv("USERBOT_BATCH_COOLDOWN_SEC", "1.0"))
 USERBOT_DUMP_MODE = str(os.getenv("USERBOT_DUMP_MODE", "FORWARD") or "FORWARD").strip().upper()
 USERBOT_CAPTION_MODE = str(os.getenv("USERBOT_CAPTION_MODE", "LAST") or "LAST").strip().upper()
-ENRICHMENT_WORKERS = int(os.getenv("ENRICHMENT_WORKERS", os.getenv("PROCESSING_CONTENT", "16")))
+ENRICHMENT_WORKERS = int(os.getenv("ENRICHMENT_WORKERS", os.getenv("PROCESSING_CONTENT", "2")))
 
 # Misc
 CHANNEL_ID = _get_int("CHANNEL_ID", 0)

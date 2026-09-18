@@ -26,6 +26,7 @@ COOKIE_SAMESITE=none
 SESSION_STRING=
 SOURCE_CHANNEL_IDS=[]
 CHAT_TOPIC=0
+ENRICHMENT_WORKERS=2
 
 # MISC
 # 0 = accept media only from CHANNEL_ID; 1 = accept media from any chat/group/topic; 2 or "hybrid" = allowlist of trusted sources.

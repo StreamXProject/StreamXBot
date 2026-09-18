@@ -369,7 +369,15 @@ def _apple_score(item: dict, *, title: str, artist: str) -> int:
     return score
 
 
+_APPLE_SEM = asyncio.Semaphore(2)
+_APPLE_BACKOFF_UNTIL: float = 0.0
+
+
 async def apple_cover_url(*, title: str, artist: str, album: str = "", year: int | None = None) -> str | None:
+    global _APPLE_BACKOFF_UNTIL
+    if time.time() < _APPLE_BACKOFF_UNTIL:
+        return None
+
     t = _strip_query_noise(title)
     a = _strip_query_noise(artist)
     al = _strip_query_noise(album)
@@ -398,16 +406,30 @@ async def apple_cover_url(*, title: str, artist: str, album: str = "", year: int
             continue
         seen.add(k)
 
+        if time.time() < _APPLE_BACKOFF_UNTIL:
+            return None
+
         url = f"https://itunes.apple.com/search?term={quote(term)}&entity=song&limit=5"
         _dbg(f"[cover] apple query={term!r}")
-        async with ClientSession() as session:
-            async with session.get(url) as resp:
-                payload = await _json_or_none(resp, label="apple")
-                if payload is None:
-                    continue
-                if resp.status != 200:
-                    _dbg(f"[cover] apple error status={resp.status} body={str(payload)[:300]!r}")
-                    continue
+
+        async with _APPLE_SEM:
+            try:
+                async with ClientSession() as session:
+                    async with session.get(url, timeout=8) as resp:
+                        if resp.status in (403, 429):
+                            _dbg(f"[cover] apple rate limited/blocked status={resp.status}, backing off for 60s")
+                            _APPLE_BACKOFF_UNTIL = time.time() + 60.0
+                            return None
+                        payload = await _json_or_none(resp, label="apple")
+                        if payload is None:
+                            continue
+                        if resp.status != 200:
+                            _dbg(f"[cover] apple error status={resp.status} body={str(payload)[:300]!r}")
+                            continue
+            except Exception as e:
+                _dbg(f"[cover] apple request failed: {e}")
+                continue
+            await asyncio.sleep(0.15)
 
         results = (payload or {}).get("results") or []
         if not isinstance(results, list) or not results:
