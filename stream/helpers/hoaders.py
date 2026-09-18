@@ -2,7 +2,7 @@ import asyncio
 import json
 import re
 
-from aiohttp import ClientSession
+from aiohttp import ClientSession, ClientTimeout
 
 from stream.core.config_manager import Config
 from stream.helpers.logger import LOGGER
@@ -170,10 +170,14 @@ async def hoaders_search(*, artist: str, album: str, country: str = "in", source
     }
 
     async with _SEM:
-        async with ClientSession(headers=HEADERS) as session:
-            async with session.post(URL, json=payload) as resp:
-                text = await resp.text()
-                status = int(resp.status)
+        async with ClientSession(headers=HEADERS, timeout=ClientTimeout(total=6.0)) as session:
+            try:
+                async with session.post(URL, json=payload) as resp:
+                    text = await resp.text()
+                    status = int(resp.status)
+            except Exception as e:
+                _dbg(f"[hoaders] request failed: {e}")
+                return [], None
 
     items = _parse_ndjson(text)
     covers = [i for i in items if isinstance(i, dict) and i.get("type") == "cover"]

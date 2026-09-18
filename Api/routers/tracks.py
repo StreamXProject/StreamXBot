@@ -36,9 +36,13 @@ from stream.database.MongoDb import db_handler
 
 router = APIRouter()
 
+from pymongo import UpdateOne
+
 _ALBUM_SLUG_RE = re.compile(r"[^a-z0-9]+", flags=re.I)
 _ALBUMS_REFRESH_LOCK = asyncio.Lock()
 _ARTISTS_REFRESH_LOCK = asyncio.Lock()
+_ARTISTS_LAST_REFRESH_AT: float = 0.0
+_ARTISTS_REFRESH_COOLDOWN_SEC: float = 300.0
 
 
 def _normalize_album_id_part(text: str) -> str:
@@ -649,7 +653,7 @@ async def _fetch_artist_avatar(client: httpx.AsyncClient, name: str, track_title
 
     # --- 1. Try Deezer direct artist search ---
     try:
-        r = await client.get("https://api.deezer.com/search/artist", params={"q": clean_name}, timeout=5.0)
+        r = await client.get("https://api.deezer.com/search/artist", params={"q": clean_name}, timeout=2.5)
         if r.status_code == 200:
             data = r.json().get("data", [])
             if data and isinstance(data[0], dict):
@@ -660,63 +664,97 @@ async def _fetch_artist_avatar(client: httpx.AsyncClient, name: str, track_title
     except Exception:
         pass
 
-    # --- 2. Try iTunes song search -> get artist name -> Deezer artist search ---
+    # --- 2. Try Spotify artist search if configured ---
     try:
-        search_term = track_title or clean_name
-        ir = await client.get("https://itunes.apple.com/search", params={"term": search_term, "entity": "song", "limit": 1, "country": "in"}, timeout=5.0)
-        if ir.status_code == 200:
-            results = ir.json().get("results", [])
-            if results and isinstance(results[0], dict):
-                itunes_artist = results[0].get("artistName", "")
-                artists = _split_artists(itunes_artist)
-                for a in artists:
-                    try:
-                        dr = await client.get("https://api.deezer.com/search/artist", params={"q": a}, timeout=5.0)
-                        if dr.status_code == 200:
-                            ddata = dr.json().get("data", [])
-                            if ddata and isinstance(ddata[0], dict):
-                                art = ddata[0]
-                                pic = art.get("picture_xl") or art.get("picture_big") or art.get("picture_medium")
-                                if pic and not _is_default_deezer_avatar(pic):
-                                    return pic
-                    except Exception:
-                        pass
+        from stream.helpers.cover_search import is_spotify_configured, _spotify_get_access_token
+        if is_spotify_configured():
+            token = await _spotify_get_access_token()
+            if token:
+                sr = await client.get(
+                    "https://api.spotify.com/v1/search",
+                    params={"q": clean_name, "type": "artist", "limit": 1},
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=2.5,
+                )
+                if sr.status_code == 200:
+                    artists_res = sr.json().get("artists", {}).get("items", [])
+                    if artists_res and isinstance(artists_res[0], dict):
+                        images = artists_res[0].get("images", [])
+                        if images and isinstance(images[0], dict) and images[0].get("url"):
+                            return str(images[0]["url"]).strip()
     except Exception:
         pass
 
-    # --- 3. Try iTunes musicArtist search for profile image ---
-    try:
-        ir2 = await client.get("https://itunes.apple.com/search", params={"term": clean_name, "entity": "musicArtist", "limit": 5}, timeout=5.0)
-        if ir2.status_code == 200:
-            results = ir2.json().get("results", [])
-            for artist_result in results:
-                if not isinstance(artist_result, dict):
-                    continue
-                artist_link = artist_result.get("artistLinkUrl")
-                if not artist_link:
-                    continue
-                try:
-                    page_resp = await client.get(artist_link, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}, timeout=8.0, follow_redirects=True)
-                    if page_resp.status_code == 200:
-                        html = page_resp.text
-                        import re as _re
-                        match = _re.search(r'property="og:image"\s+content="([^"]+)"', html)
-                        if not match:
-                            match = _re.search(r'content="([^"]+)"\s+property="og:image"', html)
-                        if not match:
-                            match = _re.search(r'name="twitter:image"\s+content="([^"]+)"', html)
-                        if match:
-                            return match.group(1)
-                except Exception:
-                    pass
-    except Exception:
-        pass
+    # --- 3. Try Deezer with sub-parts if compound artist name (e.g. "A & B") ---
+    sub_parts = _split_artists(clean_name)
+    if len(sub_parts) > 1:
+        for sub_a in sub_parts:
+            try:
+                dr = await client.get("https://api.deezer.com/search/artist", params={"q": sub_a}, timeout=2.0)
+                if dr.status_code == 200:
+                    ddata = dr.json().get("data", [])
+                    if ddata and isinstance(ddata[0], dict):
+                        art = ddata[0]
+                        pic = art.get("picture_xl") or art.get("picture_big") or art.get("picture_medium")
+                        if pic and not _is_default_deezer_avatar(pic):
+                            return pic
+            except Exception:
+                pass
 
     return None
 
 
+async def _fill_missing_artist_avatars(items: list[dict], artists_col) -> None:
+    needs: list[dict] = []
+    for doc in items:
+        c_url = doc.get("cover_url")
+        if not (isinstance(c_url, str) and c_url.strip() and not _is_default_deezer_avatar(c_url)):
+            needs.append(doc)
+    if not needs:
+        return
+
+    sem = asyncio.Semaphore(6)
+
+    async def _fetch_one(doc: dict, client: httpx.AsyncClient):
+        name = doc.get("name") or ""
+        if not name:
+            return
+        try:
+            av = await asyncio.wait_for(_fetch_artist_avatar(client, name), timeout=2.5)
+        except Exception:
+            av = None
+        if av:
+            doc["cover_url"] = _clean_url(av)
+            try:
+                await artists_col.update_one({"_id": doc["_id"]}, {"$set": {"cover_url": av}})
+            except Exception:
+                pass
+        else:
+            c_url = doc.get("cover_url")
+            if isinstance(c_url, str) and c_url.strip():
+                doc["cover_url"] = _clean_url(c_url)
+
+    async def _bounded(d: dict, client: httpx.AsyncClient):
+        async with sem:
+            await _fetch_one(d, client)
+
+    try:
+        async with httpx.AsyncClient(
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"},
+            timeout=4.0,
+        ) as http_client:
+            await asyncio.gather(*[_bounded(d, http_client) for d in needs], return_exceptions=True)
+    except Exception:
+        pass
+
+
 async def _refresh_artists_cache(*, limit_tracks: int = 20000, limit_artists: int = 5000) -> dict[str, int]:
+    global _ARTISTS_LAST_REFRESH_AT
     async with _ARTISTS_REFRESH_LOCK:
+        now = time.time()
+        if (now - _ARTISTS_LAST_REFRESH_AT) < 30.0:
+            return {"scanned_tracks": 0, "processed_artists": 0, "upserted": 0}
+
         limit_tracks = int(limit_tracks)
         if limit_tracks <= 0:
             limit_tracks = 20000
@@ -730,81 +768,82 @@ async def _refresh_artists_cache(*, limit_tracks: int = 20000, limit_artists: in
             limit_artists = 20_000
 
         tracks_col = get_audio_tracks_collection()
-    cursor = (
-        tracks_col.find(
-            {
-                "deleted": {"$ne": True},
-                "$or": [{"audio.artist": {"$exists": True, "$ne": ""}}, {"audio.performer": {"$exists": True, "$ne": ""}}],
-            },
-            {"audio.artist": 1, "audio.performer": 1, "audio.artists": 1, "spotify.cover_url": 1, "updated_at": 1},
-            allow_disk_use=True,
+        cursor = (
+            tracks_col.find(
+                {
+                    "deleted": {"$ne": True},
+                    "$or": [{"audio.artist": {"$exists": True, "$ne": ""}}, {"audio.performer": {"$exists": True, "$ne": ""}}],
+                },
+                {"audio.artist": 1, "audio.performer": 1, "audio.artists": 1, "updated_at": 1},
+                allow_disk_use=True,
+            )
+            .sort([("updated_at", -1)])
+            .limit(int(limit_tracks))
         )
-        .sort([("updated_at", -1)])
-        .limit(int(limit_tracks))
-    )
 
-    by_key: dict[str, dict[str, object]] = {}
-    scanned = 0
-    for_limit = 0
-    async for doc in cursor:
-        scanned += 1
-        audio = doc.get("audio") if isinstance(doc.get("audio"), dict) else {}
-        raw_artists = audio.get("artists")
-        artists: list[str] = []
-        if isinstance(raw_artists, list):
-            for a in raw_artists:
-                if isinstance(a, str) and a.strip():
-                    artists.extend(_split_artists(a.strip()))
-        if not artists:
-            raw_artist = audio.get("artist") or audio.get("performer") or ""
-            raw_artist = raw_artist.strip() if isinstance(raw_artist, str) else ""
-            if not raw_artist:
-                continue
-            artists = _split_artists(raw_artist)
-        cover_url = ""
-        updated_at = float(doc.get("updated_at") or 0.0)
-        for name in artists:
-            name = name.strip()
-            if not name:
-                continue
-            sub_parts = _split_artists(name) if ("/" in name or "," in name or " & " in name or " feat " in name.lower()) else [name]
-            for sub_name in sub_parts:
-                k = sub_name.casefold().strip()
-                if not k:
+        by_key: dict[str, dict[str, object]] = {}
+        scanned = 0
+        for_limit = 0
+        async for doc in cursor:
+            scanned += 1
+            audio = doc.get("audio") if isinstance(doc.get("audio"), dict) else {}
+            raw_artists = audio.get("artists")
+            artists: list[str] = []
+            if isinstance(raw_artists, list):
+                for a in raw_artists:
+                    if isinstance(a, str) and a.strip():
+                        artists.extend(_split_artists(a.strip()))
+            if not artists:
+                raw_artist = audio.get("artist") or audio.get("performer") or ""
+                raw_artist = raw_artist.strip() if isinstance(raw_artist, str) else ""
+                if not raw_artist:
                     continue
-                entry = by_key.get(k)
-                if entry is None:
-                    by_key[k] = {
-                        "name": sub_name,
-                        "match_artist": k,
-                        "tracks_count": 1,
-                        "updated_at": updated_at,
-                    }
-                else:
-                    entry["tracks_count"] = int(entry.get("tracks_count") or 0) + 1
-                    prev_updated = float(entry.get("updated_at") or 0.0)
-                    if updated_at > prev_updated:
-                        entry["updated_at"] = updated_at
-        if len(by_key) >= limit_artists:
-            for_limit += 1
-            if for_limit >= 250:
-                break
+                artists = _split_artists(raw_artist)
+            updated_at = float(doc.get("updated_at") or 0.0)
+            for name in artists:
+                name = name.strip()
+                if not name:
+                    continue
+                sub_parts = _split_artists(name) if ("/" in name or "," in name or " & " in name or " feat " in name.lower()) else [name]
+                for sub_name in sub_parts:
+                    k = sub_name.casefold().strip()
+                    if not k:
+                        continue
+                    entry = by_key.get(k)
+                    if entry is None:
+                        by_key[k] = {
+                            "name": sub_name,
+                            "match_artist": k,
+                            "tracks_count": 1,
+                            "updated_at": updated_at,
+                        }
+                    else:
+                        entry["tracks_count"] = int(entry.get("tracks_count") or 0) + 1
+                        prev_updated = float(entry.get("updated_at") or 0.0)
+                        if updated_at > prev_updated:
+                            entry["updated_at"] = updated_at
+            if len(by_key) >= limit_artists:
+                for_limit += 1
+                if for_limit >= 250:
+                    break
 
-    artists_col = db_handler.get_collection("artists").collection
-    try:
-        await artists_col.delete_many({
-            "$or": [
-                {"name": {"$regex": "/|,|&| feat| ft | featuring ", "$options": "i"}},
-                {"_id": {"$regex": "/|,|&| feat| ft | featuring ", "$options": "i"}},
-                {"match_artist": {"$regex": "/|,|&| feat| ft | featuring ", "$options": "i"}},
-            ]
-        })
-    except Exception:
-        pass
-    now = time.time()
-    upserted = 0
-    processed = 0
-    async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as http_client:
+        artists_col = db_handler.get_collection("artists").collection
+        try:
+            await artists_col.delete_many({
+                "$or": [
+                    {"name": {"$regex": "/|,|&| feat| ft | featuring ", "$options": "i"}},
+                    {"_id": {"$regex": "/|,|&| feat| ft | featuring ", "$options": "i"}},
+                    {"match_artist": {"$regex": "/|,|&| feat| ft | featuring ", "$options": "i"}},
+                ]
+            })
+        except Exception:
+            pass
+
+        now = time.time()
+        upserted = 0
+        processed = 0
+        bulk_ops = []
+
         for k, entry in sorted(by_key.items(), key=lambda kv: float(kv[1].get("updated_at") or 0.0), reverse=True)[:limit_artists]:
             processed += 1
             name = (entry.get("name") or "").strip()
@@ -815,36 +854,37 @@ async def _refresh_artists_cache(*, limit_tracks: int = 20000, limit_artists: in
             if not aid:
                 continue
 
-            existing = await artists_col.find_one({"_id": aid}, {"cover_url": 1})
-            existing_cover = ""
-            if existing and isinstance(existing.get("cover_url"), str):
-                existing_cover = existing["cover_url"].strip()
-
-            has_good_cover = existing_cover and not _is_default_deezer_avatar(existing_cover)
-            if has_good_cover:
-                c_url = existing_cover
-            else:
-                c_url = await _fetch_artist_avatar(http_client, name)
-                if not c_url:
-                    c_url = existing_cover or None
-
-            res = await artists_col.update_one(
-                {"_id": aid},
-                {
-                    "$setOnInsert": {"created_at": now, "followers": 0},
-                    "$set": {
-                        "name": name,
-                        "cover_url": c_url,
-                        "tracks_count": int(entry.get("tracks_count") or 0),
-                        "match_artist": match_artist,
-                        "updated_at": float(entry.get("updated_at") or now),
+            bulk_ops.append(
+                UpdateOne(
+                    {"_id": aid},
+                    {
+                        "$setOnInsert": {"created_at": now, "followers": 0},
+                        "$set": {
+                            "name": name,
+                            "tracks_count": int(entry.get("tracks_count") or 0),
+                            "match_artist": match_artist,
+                            "updated_at": float(entry.get("updated_at") or now),
+                        },
                     },
-                },
-                upsert=True,
+                    upsert=True,
+                )
             )
-            if getattr(res, "upserted_id", None) is not None:
-                upserted += 1
+            if len(bulk_ops) >= 500:
+                try:
+                    res = await artists_col.bulk_write(bulk_ops, ordered=False)
+                    upserted += getattr(res, "upserted_count", 0)
+                except Exception:
+                    pass
+                bulk_ops.clear()
 
+        if bulk_ops:
+            try:
+                res = await artists_col.bulk_write(bulk_ops, ordered=False)
+                upserted += getattr(res, "upserted_count", 0)
+            except Exception:
+                pass
+
+        _ARTISTS_LAST_REFRESH_AT = time.time()
         return {"scanned_tracks": scanned, "processed_artists": processed, "upserted": upserted}
 
 
@@ -1054,26 +1094,17 @@ async def search_artists_db(
         except Exception:
             pass
 
-    async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as http_client:
-        items: list[dict] = []
-        async for doc in cursor:
-            if "_id" in doc:
-                doc["_id"] = str(doc["_id"])
-            c_url = doc.get("cover_url")
-            if isinstance(c_url, str) and c_url.strip():
-                doc["cover_url"] = _clean_url(c_url)
-            else:
-                name = doc.get("name") or ""
-                if name:
-                    av = await _fetch_artist_avatar(http_client, name)
-                    if av:
-                        doc["cover_url"] = av
-                        try:
-                            await artists_col.update_one({"_id": doc["_id"]}, {"$set": {"cover_url": av}})
-                        except Exception:
-                            pass
-            doc["is_following"] = doc.get("_id") in followed_ids
-            items.append(doc)
+    items: list[dict] = []
+    async for doc in cursor:
+        if "_id" in doc:
+            doc["_id"] = str(doc["_id"])
+        c_url = doc.get("cover_url")
+        if isinstance(c_url, str) and c_url.strip() and not _is_default_deezer_avatar(c_url):
+            doc["cover_url"] = _clean_url(c_url)
+        doc["is_following"] = doc.get("_id") in followed_ids
+        items.append(doc)
+
+    await _fill_missing_artist_avatars(items, artists_col)
 
     return {
         "ok": True,
@@ -1384,7 +1415,8 @@ async def list_artists(
 
     tracks_col = get_audio_tracks_collection()
     should_refresh = bool(refresh) or existing <= 0
-    if not should_refresh:
+    now = time.time()
+    if not should_refresh and (now - _ARTISTS_LAST_REFRESH_AT) > _ARTISTS_REFRESH_COOLDOWN_SEC:
         try:
             latest_track = await tracks_col.find_one(
                 {"deleted": {"$ne": True}},
@@ -1404,11 +1436,14 @@ async def list_artists(
             pass
 
     if should_refresh:
-        await _refresh_artists_cache(limit_tracks=100_000 if refresh else 20_000, limit_artists=20_000 if refresh else 5_000)
-        try:
-            existing = int(await artists_col.estimated_document_count())
-        except Exception:
-            existing = 0
+        if _ARTISTS_REFRESH_LOCK.locked() and existing > 0:
+            pass
+        else:
+            await _refresh_artists_cache(limit_tracks=100_000 if refresh else 20_000, limit_artists=20_000 if refresh else 5_000)
+            try:
+                existing = int(await artists_col.estimated_document_count())
+            except Exception:
+                existing = 0
 
     followed_ids: set[str] = set()
     if user_id is not None:
@@ -1429,28 +1464,16 @@ async def list_artists(
         .limit(int(limit))
     )
     items: list[dict] = []
-    async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as http_client:
-        async for doc in cursor:
-            if "_id" in doc:
-                doc["_id"] = str(doc["_id"])
-            c_url = doc.get("cover_url")
-            has_good_cover = isinstance(c_url, str) and c_url.strip() and not _is_default_deezer_avatar(c_url)
-            if has_good_cover:
-                doc["cover_url"] = _clean_url(c_url)
-            else:
-                name = doc.get("name") or ""
-                if name:
-                    av = await _fetch_artist_avatar(http_client, name)
-                    if av:
-                        doc["cover_url"] = av
-                        try:
-                            await artists_col.update_one({"_id": doc["_id"]}, {"$set": {"cover_url": av}})
-                        except Exception:
-                            pass
-                    elif isinstance(c_url, str) and c_url.strip():
-                        doc["cover_url"] = _clean_url(c_url)
-            doc["is_following"] = doc.get("_id") in followed_ids
-            items.append(doc)
+    async for doc in cursor:
+        if "_id" in doc:
+            doc["_id"] = str(doc["_id"])
+        c_url = doc.get("cover_url")
+        if isinstance(c_url, str) and c_url.strip() and not _is_default_deezer_avatar(c_url):
+            doc["cover_url"] = _clean_url(c_url)
+        doc["is_following"] = doc.get("_id") in followed_ids
+        items.append(doc)
+
+    await _fill_missing_artist_avatars(items, artists_col)
     return {"ok": True, "page": int(page), "per_page": int(limit), "total": int(existing), "items": items}
 
 
@@ -1559,8 +1582,20 @@ async def artist_details(artist_id: str, user_id: Optional[int] = Depends(get_op
         releases = []
 
     artist["_id"] = str(artist.get("_id"))
-    if isinstance(artist.get("cover_url"), str):
-        artist["cover_url"] = _clean_url(artist.get("cover_url"))
+    c_url = artist.get("cover_url")
+    if isinstance(c_url, str) and c_url.strip() and not _is_default_deezer_avatar(c_url):
+        artist["cover_url"] = _clean_url(c_url)
+    else:
+        name = artist.get("name") or ""
+        if name:
+            try:
+                async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}, timeout=2.5) as http_client:
+                    av = await _fetch_artist_avatar(http_client, name)
+                    if av:
+                        artist["cover_url"] = _clean_url(av)
+                        await artists_col.update_one({"_id": aid}, {"$set": {"cover_url": av}})
+            except Exception:
+                pass
     artist.pop("match_artist", None)
 
     return {

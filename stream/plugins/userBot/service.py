@@ -245,6 +245,19 @@ async def _store_topic_metadata(
     chat_id = _coerce_int(source_chat_id)
     if chat_id is None:
         return
+    cleaned_name = str(topic_name or "").strip()
+    if not cleaned_name:
+        return
+    if cleaned_name.startswith("topic_"):
+        try:
+            existing = await db_handler.get_collection("forum_topics").collection.find_one(
+                {"_id": f"{int(chat_id)}:{int(topic_id)}"},
+                projection={"topic_name": 1},
+            )
+            if existing and existing.get("topic_name") and not str(existing["topic_name"]).startswith("topic_"):
+                return
+        except Exception:
+            pass
     try:
         await db_handler.get_collection("forum_topics").update_one(
             {"_id": f"{int(chat_id)}:{int(topic_id)}"},
@@ -252,7 +265,7 @@ async def _store_topic_metadata(
                 "$set": {
                     "source_chat_id": int(chat_id),
                     "topic_id": int(topic_id),
-                    "topic_name": str(topic_name or "").strip(),
+                    "topic_name": cleaned_name,
                     "updated_at": time.time(),
                 }
             },

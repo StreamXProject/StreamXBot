@@ -34,6 +34,7 @@ _ENRICH_WORKERS: list[asyncio.Task] = []
 _INDEX_TASKS: dict[str, asyncio.Task] = {}
 _INDEX_TASKS_LOCK = asyncio.Lock()
 _ENRICH_RETRY_DELAY_SEC = 60.0
+_ENRICH_DL_SEM = asyncio.Semaphore(1)
 
 
 async def _mark_enrichment_retry(
@@ -641,8 +642,22 @@ async def _source_metadata_from_message(message: Message) -> dict:
                 fdoc = await db_handler.get_collection("forum_topics").collection.find_one(
                     {"_id": f"{int(lookup_chat)}:{int(topic_id)}"}
                 )
-                if fdoc and fdoc.get("topic_name"):
+                if fdoc and fdoc.get("topic_name") and not str(fdoc["topic_name"]).startswith("topic_"):
                     topic_name = str(fdoc["topic_name"]).strip()
+            except Exception:
+                pass
+
+        if not topic_name or topic_name.startswith("topic_"):
+            try:
+                tdoc = await db_handler.audio_collection.collection.find_one(
+                    {
+                        "topic_id": int(topic_id),
+                        "topic_name": {"$exists": True, "$not": {"$regex": r"^topic_"}},
+                    },
+                    projection={"topic_name": 1},
+                )
+                if tdoc and tdoc.get("topic_name"):
+                    topic_name = str(tdoc["topic_name"]).strip()
             except Exception:
                 pass
 
@@ -941,31 +956,47 @@ async def _enrich_audio_doc(
 
     try:
         max_chunk = int(getattr(Config, "PARTIAL_DOWNLOAD_BYTES", 2_000_000))
-        await download_partial_media(message, partial_path, max_bytes=max_chunk)
+        async with _ENRICH_DL_SEM:
+            await download_partial_media(message, partial_path, max_bytes=max_chunk)
+        await asyncio.sleep(0.02)
         output = await run_mediainfo(partial_path)
         wav_dur = _get_wav_duration_from_file(partial_path, file_size=file_size)
-        audio_doc_test = extract_audio_metadata_normalized(
-            output, duration_sec=wav_dur, file_size=file_size
-        )
 
-        # If partial download failed to extract duration, do a full download.
-        if not audio_doc_test.get("duration_sec"):
-            LOG.debug(
-                f"Partial mediainfo insufficient, falling back to full download for {file_unique_id}"
+        # Only fall back to full download when mediainfo DID run but couldn't
+        # extract duration from the partial chunk.  If output is empty it means
+        # the mediainfo binary is broken/missing — downloading the full file
+        # won't help and just wastes bandwidth.
+        if output:
+            audio_doc_test = extract_audio_metadata_normalized(
+                output, duration_sec=wav_dur, file_size=file_size
             )
-            file_size_dl = await download_message_media(message, file_path)
-            if file_size_dl:
-                file_size = file_size_dl
-            output = await run_mediainfo(file_path)
-            wav_dur = _get_wav_duration_from_file(file_path, file_size=file_size)
-            try:
-                content_hash = await asyncio.to_thread(sha256_prefix_file, file_path)
-            except Exception as e:
-                LOG.warning(
-                    f"Hashing failed chat={message.chat.id} msg={message.id}: {e}"
+            if not audio_doc_test.get("duration_sec"):
+                LOG.debug(
+                    f"Partial mediainfo insufficient, falling back to full download for {file_unique_id}"
                 )
+                async with _ENRICH_DL_SEM:
+                    file_size_dl = await download_message_media(message, file_path)
+                if file_size_dl:
+                    file_size = file_size_dl
+                output = await run_mediainfo(file_path)
+                wav_dur = _get_wav_duration_from_file(file_path, file_size=file_size)
+                try:
+                    content_hash = await asyncio.to_thread(sha256_prefix_file, file_path)
+                except Exception as e:
+                    LOG.warning(
+                        f"Hashing failed chat={message.chat.id} msg={message.id}: {e}"
+                    )
+            else:
+                # We got enough info from partial download. Try hashing partial just as prefix
+                try:
+                    content_hash = await asyncio.to_thread(sha256_prefix_file, partial_path)
+                except Exception:
+                    pass
         else:
-            # We got enough info from partial download. Try hashing partial just as prefix
+            # mediainfo produced no output — use Pyrogram media attributes as fallback
+            LOG.debug(
+                f"mediainfo unavailable, using Pyrogram attributes for {file_unique_id}"
+            )
             try:
                 content_hash = await asyncio.to_thread(sha256_prefix_file, partial_path)
             except Exception:
@@ -990,16 +1021,26 @@ async def _enrich_audio_doc(
                 pass
 
     if not output:
-        if bool(getattr(Config, "DEBUG", False)):
-            LOG.debug(f"[index] mediainfo empty file_unique_id={file_unique_id!r}")
-        await _mark_enrichment_retry(file_unique_id, "mediainfo produced no output")
-        return
-
-    duration_sec = _coerce_int(getattr(media, "duration", None)) or wav_dur
-
-    audio_doc = extract_audio_metadata_normalized(
-        output, duration_sec=duration_sec, file_size=file_size
-    )
+        # mediainfo unavailable — build a minimal audio_doc from Pyrogram
+        # media attributes so enrichment can still proceed.
+        duration_sec = _coerce_int(getattr(media, "duration", None)) or wav_dur
+        audio_doc = {}
+        if duration_sec:
+            audio_doc["duration_sec"] = duration_sec
+        if file_size:
+            audio_doc["file_size"] = int(file_size)
+        _mime = getattr(media, "mime_type", None)
+        if _mime:
+            audio_doc["format"] = str(_mime)
+        LOG.debug(
+            f"[index] mediainfo empty, using pyrogram attrs file_unique_id={file_unique_id!r} "
+            f"duration={duration_sec} file_size={file_size}"
+        )
+    else:
+        duration_sec = _coerce_int(getattr(media, "duration", None)) or wav_dur
+        audio_doc = extract_audio_metadata_normalized(
+            output, duration_sec=duration_sec, file_size=file_size
+        )
 
     file_name = getattr(media, "file_name", "") or ""
     inferred_performer, inferred_title = infer_artist_title(file_name)
@@ -1100,6 +1141,7 @@ async def _enrich_audio_doc(
         _fetch_avatar(),
         _fetch_spotify(),
     )
+    await asyncio.sleep(0.02)
 
     if cover_res:
         origin_cover_url, cover_source, small_cover_url = cover_res
@@ -1246,8 +1288,15 @@ async def _enrich_audio_doc(
         }
     if not existing or existing.get("topic_id") is None:
         ensure_source["topic_id"] = source_meta.get("topic_id")
-    if not existing or not existing.get("topic_name"):
-        ensure_source["topic_name"] = source_meta.get("topic_name")
+    if (
+        not existing
+        or not existing.get("topic_name")
+        or str(existing.get("topic_name", "")).startswith("topic_")
+    ):
+        if source_meta.get("topic_name") and not str(source_meta.get("topic_name")).startswith("topic_"):
+            ensure_source["topic_name"] = source_meta.get("topic_name")
+        elif not existing or not existing.get("topic_name"):
+            ensure_source["topic_name"] = source_meta.get("topic_name")
     if not existing or existing.get("cache_chat_id") is None:
         ensure_source["cache_chat_id"] = source_meta.get("cache_chat_id")
     if not existing or existing.get("cache_message_id") is None:
@@ -1313,8 +1362,15 @@ async def _enrich_audio_doc(
                 }
             if not existing3 or existing3.get("topic_id") is None:
                 ensure_source2["topic_id"] = source_meta.get("topic_id")
-            if not existing3 or not existing3.get("topic_name"):
-                ensure_source2["topic_name"] = source_meta.get("topic_name")
+            if (
+                not existing3
+                or not existing3.get("topic_name")
+                or str(existing3.get("topic_name", "")).startswith("topic_")
+            ):
+                if source_meta.get("topic_name") and not str(source_meta.get("topic_name")).startswith("topic_"):
+                    ensure_source2["topic_name"] = source_meta.get("topic_name")
+                elif not existing3 or not existing3.get("topic_name"):
+                    ensure_source2["topic_name"] = source_meta.get("topic_name")
             if not existing3 or existing3.get("cache_chat_id") is None:
                 ensure_source2["cache_chat_id"] = source_meta.get("cache_chat_id")
             if not existing3 or existing3.get("cache_message_id") is None:
@@ -1390,6 +1446,16 @@ async def _enrich_audio_doc(
         },
         upsert=False,
     )
+    try:
+        s_cid = source_meta.get("source_chat_id")
+        s_mid = source_meta.get("source_message_id")
+        if s_cid and s_mid:
+            await _sync_file_ids_for_all_clients(
+                source_chat_id=int(s_cid),
+                source_message_id=int(s_mid),
+            )
+    except Exception:
+        pass
     if bool(getattr(Config, "DEBUG", False)):
         LOG.debug(
             f"[index] done file_unique_id={file_unique_id!r} target_id={target_id!r}"
@@ -1417,45 +1483,14 @@ async def channel_audio_filter(_, message: Message):
             )
             return
 
-        key = f"{message.chat.id}:{message.id}"
-        async with _INDEX_TASKS_LOCK:
-            task = _INDEX_TASKS.get(key)
-            if task and not task.done():
-                return
-            media = _pick_audio_media(message)
-            if not media:
-                return
-            await _upsert_minimal(message, media, enriching=True)
-            fid_key = f"fid:{message.chat.id}:{message.id}"
-            fid_task = _INDEX_TASKS.get(fid_key)
-            if not fid_task or fid_task.done():
-                _INDEX_TASKS[fid_key] = asyncio.create_task(
-                    _sync_file_ids_for_all_clients(
-                        source_chat_id=int(message.chat.id),
-                        source_message_id=int(message.id),
-                    )
-                )
-            task = asyncio.create_task(_enrich_audio_doc(message, media))
-            _INDEX_TASKS[key] = task
+        media = _pick_audio_media(message)
+        if not media:
+            return
 
-        def _done(_t: asyncio.Task):
-            try:
-                _t.result()
-            except Exception as e:
-                LOG.warning(
-                    f"channel_audio_filter background indexing failed chat={message.chat.id} msg={message.id}: {e}",
-                    exc_info=True,
-                )
-
-            async def _cleanup():
-                async with _INDEX_TASKS_LOCK:
-                    current = _INDEX_TASKS.get(key)
-                    if current is _t:
-                        _INDEX_TASKS.pop(key, None)
-
-            asyncio.create_task(_cleanup())
-
-        task.add_done_callback(_done)
+        # Store minimal initial record with enriched=False.
+        # The background enrichment workers (_enrichment_loop) will pick it up
+        # and process it with controlled concurrency, preventing event loop saturation.
+        await _upsert_minimal(message, media, enriching=False)
     except Exception as e:
         LOG.warning(
             f"channel_audio_filter failed chat={message.chat.id} msg={message.id}: {e}",

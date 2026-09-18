@@ -1156,18 +1156,70 @@ def _dbg(msg: str) -> None:
         LOG.debug(msg)
 
 
-async def run_mediainfo(path: str) -> str:
-    def _run() -> str:
-        proc = subprocess.run(
-            ["mediainfo", path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-        )
-        data = proc.stdout or proc.stderr or b""
-        return data.decode(errors="ignore")
+_MEDIAINFO_AVAILABLE: bool | None = None  # None = not yet checked
 
-    return await asyncio.to_thread(_run)
+
+async def _check_mediainfo_available() -> bool:
+    """One-time check whether the mediainfo binary exists and runs."""
+    global _MEDIAINFO_AVAILABLE
+    if _MEDIAINFO_AVAILABLE is not None:
+        return _MEDIAINFO_AVAILABLE
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "mediainfo", "--Version",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await asyncio.wait_for(proc.communicate(), timeout=5.0)
+        _MEDIAINFO_AVAILABLE = proc.returncode == 0
+    except Exception:
+        _MEDIAINFO_AVAILABLE = False
+    if not _MEDIAINFO_AVAILABLE:
+        LOG.warning("mediainfo binary not available — metadata extraction will be limited")
+    else:
+        LOG.info("mediainfo binary OK")
+    return _MEDIAINFO_AVAILABLE
+
+
+async def run_mediainfo(path: str) -> str:
+    if not await _check_mediainfo_available():
+        return ""
+
+    proc = None
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "mediainfo",
+            path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=8.0)
+        data = stdout or stderr or b""
+        return data.decode(errors="ignore")
+    except asyncio.TimeoutError:
+        LOG.warning(f"mediainfo timed out on {path}")
+        if proc:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=2.0)
+            except asyncio.TimeoutError:
+                pass
+        return ""
+    except Exception as e:
+        LOG.warning(f"mediainfo failed on {path}: {e}")
+        if proc and proc.returncode is None:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=2.0)
+            except asyncio.TimeoutError:
+                pass
+        return ""
 
 
 async def _download_partial_http(

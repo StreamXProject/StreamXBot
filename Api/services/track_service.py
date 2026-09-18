@@ -197,7 +197,7 @@ async def browse_tracks(
 
 
 _TOPICS_CACHE: dict[str, tuple[float, dict]] = {}
-_TOPICS_CACHE_TTL = 60.0
+_TOPICS_CACHE_TTL = 120.0
 
 
 async def get_unique_topics(
@@ -347,7 +347,7 @@ async def browse_topic_tracks(
         "topic_id": 1,
         "topic_name": 1,
     }
-    sort = [("created_at", -1), ("source_message_id", -1), ("_id", -1)]
+    sort = [("created_at", -1), ("source_message_id", -1)]
 
     total, docs = await asyncio.gather(
         col.count_documents(query),

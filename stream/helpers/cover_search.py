@@ -8,7 +8,7 @@ import time
 from typing import Any
 from urllib.parse import quote
 
-from aiohttp import ClientSession
+from aiohttp import ClientSession, ClientTimeout
 
 from stream.core.config_manager import Config
 from stream.helpers.hoaders import hoaders_big_cover_url, hoaders_cover_info
@@ -192,7 +192,7 @@ async def spotify_album_cover_url(*, artist: str, album: str, year: int | None =
         _dbg(f"[cover] spotify_album query={q!r}")
         url = f"https://api.spotify.com/v1/search?q={quote(q)}&type=album&limit=5"
         async with _SPOTIFY_SEM:
-            async with ClientSession() as session:
+            async with ClientSession(timeout=ClientTimeout(total=5.0)) as session:
                 async with session.get(url, headers=headers) as resp:
                     payload = await _json_or_none(resp, label="spotify_album")
                     if payload is None:
@@ -290,7 +290,7 @@ async def spotify_best_track(*, title: str, artist: str, album: str = "", year: 
         _dbg(f"[cover] spotify_track query={q!r}")
         url = f"https://api.spotify.com/v1/search?q={quote(q)}&type=track&limit=5"
         async with _SPOTIFY_SEM:
-            async with ClientSession() as session:
+            async with ClientSession(timeout=ClientTimeout(total=5.0)) as session:
                 async with session.get(url, headers=headers) as resp:
                     payload = await _json_or_none(resp, label="spotify_track")
                     if payload is None:
@@ -399,6 +399,7 @@ async def apple_cover_url(*, title: str, artist: str, album: str = "", year: int
     best_art = None
     best_score = -1
 
+    terms = terms[:2]
     seen: set[str] = set()
     for term in terms:
         k = (term or "").strip().casefold()
@@ -414,8 +415,9 @@ async def apple_cover_url(*, title: str, artist: str, album: str = "", year: int
 
         async with _APPLE_SEM:
             try:
-                async with ClientSession() as session:
-                    async with session.get(url, timeout=8) as resp:
+                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+                async with ClientSession(headers=headers, timeout=ClientTimeout(total=5.0)) as session:
+                    async with session.get(url) as resp:
                         if resp.status in (403, 429):
                             _dbg(f"[cover] apple rate limited/blocked status={resp.status}, backing off for 60s")
                             _APPLE_BACKOFF_UNTIL = time.time() + 60.0
@@ -476,6 +478,7 @@ async def deezer_cover_url(*, title: str, artist: str, album: str = "", year: in
         if t:
             queries.append(f"{t} {int(year)}".strip())
 
+    queries = queries[:2]
     seen: set[str] = set()
     for q in queries:
         k = (q or "").strip().casefold()
@@ -485,14 +488,18 @@ async def deezer_cover_url(*, title: str, artist: str, album: str = "", year: in
 
         url = f"https://api.deezer.com/search?q={quote(q)}&limit=3"
         _dbg(f"[cover] deezer query={q!r}")
-        async with ClientSession() as session:
-            async with session.get(url) as resp:
-                payload = await _json_or_none(resp, label="deezer")
-                if payload is None:
-                    continue
-                if resp.status != 200:
-                    _dbg(f"[cover] deezer error status={resp.status} body={str(payload)[:300]!r}")
-                    continue
+        try:
+            async with ClientSession(timeout=ClientTimeout(total=5.0)) as session:
+                async with session.get(url) as resp:
+                    payload = await _json_or_none(resp, label="deezer")
+                    if payload is None:
+                        continue
+                    if resp.status != 200:
+                        _dbg(f"[cover] deezer error status={resp.status} body={str(payload)[:300]!r}")
+                        continue
+        except Exception as e:
+            _dbg(f"[cover] deezer request failed: {e}")
+            continue
 
         data = (payload or {}).get("data") or []
         if not isinstance(data, list) or not data:
@@ -551,33 +558,25 @@ async def fetch_artist_avatar_info(artist_name: str) -> dict | None:
     except Exception as e:
         _dbg(f"[artist] deezer search failed for {name!r}: {e}")
 
-    if not avatar_url:
+    if not avatar_url and is_spotify_configured():
         try:
-            itunes_url = f"https://itunes.apple.com/search?term={quote(name)}&entity=musicArtist&limit=1"
-            async with ClientSession() as session:
-                async with session.get(itunes_url, timeout=10) as resp:
-                    if resp.status == 200:
-                        payload = await _json_or_none(resp, label="itunes_artist")
-                        results = (payload or {}).get("results") or []
-                        if results and isinstance(results[0], dict):
-                            first = results[0]
-                            artist_id = first.get("artistId")
-                            artist_link = first.get("artistLinkUrl")
-                            if artist_link:
-                                link = artist_link
-                                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-                                async with session.get(artist_link, headers=headers, timeout=10) as page_resp:
-                                    if page_resp.status == 200:
-                                        html = await page_resp.text()
-                                        match = re.search(r'property="og:image"\s+content="([^"]+)"', html)
-                                        if not match:
-                                            match = re.search(r'content="([^"]+)"\s+property="og:image"', html)
-                                        if not match:
-                                            match = re.search(r'name="twitter:image"\s+content="([^"]+)"', html)
-                                        if match:
-                                            avatar_url = match.group(1)
+            sp_token = await _spotify_get_access_token()
+            if sp_token:
+                sp_url = f"https://api.spotify.com/v1/search?q={quote(name)}&type=artist&limit=1"
+                sp_headers = {"Authorization": f"Bearer {sp_token}"}
+                async with ClientSession(headers=sp_headers, timeout=ClientTimeout(total=4.0)) as session:
+                    async with session.get(sp_url) as resp:
+                        if resp.status == 200:
+                            sp_data = await _json_or_none(resp, label="spotify_artist")
+                            sp_items = (sp_data or {}).get("artists", {}).get("items") or []
+                            if sp_items and isinstance(sp_items[0], dict):
+                                sp_imgs = sp_items[0].get("images") or []
+                                if sp_imgs and isinstance(sp_imgs[0], dict) and sp_imgs[0].get("url"):
+                                    avatar_url = str(sp_imgs[0]["url"]).strip()
+                                    artist_id = sp_items[0].get("id")
+                                    link = (sp_items[0].get("external_urls") or {}).get("spotify")
         except Exception as e:
-            _dbg(f"[artist] itunes search failed for {name!r}: {e}")
+            _dbg(f"[artist] spotify artist search failed for {name!r}: {e}")
 
     if not avatar_url:
         try:
@@ -1053,8 +1052,6 @@ async def youtube_cover_search(
 
     for q in queries:
         candidates = await _search_youtube_innertube(q)
-        if not candidates:
-            candidates = await asyncio.to_thread(_search_youtube_ytdlp_sync, q)
 
         for cand in candidates:
             vid = cand.get("video_id")
