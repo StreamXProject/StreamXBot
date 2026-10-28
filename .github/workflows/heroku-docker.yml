@@ -1,4 +1,4 @@
-name: Heroku (setup config + Docker web deploy)
+name: Heroku (Docker web deploy)
 
 on:
   push:
@@ -50,12 +50,6 @@ jobs:
 
           echo "HEROKU_ENABLED=$ENABLED" >> $GITHUB_ENV
 
-          if [ -n "${{ secrets.CONFIG_GIST }}" ]; then
-            echo "GIST_RAW_URL=${{ secrets.CONFIG_GIST }}" >> $GITHUB_ENV
-          else
-            echo "GIST_RAW_URL=" >> $GITHUB_ENV
-          fi
-
       - name: Ensure Heroku app exists (create if missing)
         if: env.HEROKU_ENABLED == 'true'
         env:
@@ -81,63 +75,6 @@ jobs:
             echo "::error::Failed to ensure Heroku app exists. Check app name and Heroku key permissions."
             exit 1
           fi
-
-      - name: Download config.py from gist
-        if: env.HEROKU_ENABLED == 'true' && env.GIST_RAW_URL != ''
-        env:
-          GIST_RAW_URL: ${{ env.GIST_RAW_URL }}
-        run: |
-          echo "Downloading config.py from $GIST_RAW_URL"
-          curl -sSL "$GIST_RAW_URL" -o remote_config.py
-
-          echo "First lines of remote_config.py:"
-          head -n 20 remote_config.py || true
-
-      - name: Convert config.py (gist) to Heroku config JSON (dynamic keys)
-        if: env.HEROKU_ENABLED == 'true' && env.GIST_RAW_URL != ''
-        run: |
-          python - << 'PY'
-          import runpy, json, types
-
-          cfg = runpy.run_path("remote_config.py")
-
-          mapping = {}
-
-          for k, v in cfg.items():
-            # Skip Python internals like __name__, __file__, etc.
-            if k.startswith("__"):
-              continue
-
-            # Skip modules, functions, classes
-            if isinstance(v, types.ModuleType) or isinstance(v, type) or callable(v):
-              continue
-
-            # Convert lists/tuples like [6310382769] to "6310382769 123456"
-            if isinstance(v, (list, tuple)):
-              mapping[k] = " ".join(str(x) for x in v)
-            else:
-              mapping[k] = str(v)
-
-          with open("heroku-config.json", "w") as f:
-            json.dump(mapping, f)
-
-          print("Generated heroku-config.json with keys:", ", ".join(mapping.keys()))
-          PY
-
-      - name: Apply config vars to Heroku app
-        if: env.HEROKU_ENABLED == 'true' && env.GIST_RAW_URL != ''
-        env:
-          HEROKU_API_KEY: ${{ env.HEROKU_API_KEY }}
-          HEROKU_APP_NAME: ${{ env.HEROKU_APP_NAME }}
-        run: |
-          echo "Patching config vars for app '$HEROKU_APP_NAME' from gist..."
-          curl -sS -X PATCH "https://api.heroku.com/apps/$HEROKU_APP_NAME/config-vars" \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/vnd.heroku+json; version=3" \
-            -H "Authorization: Bearer $HEROKU_API_KEY" \
-            -d @heroku-config.json
-
-          echo "Config vars have been updated for app '$HEROKU_APP_NAME'."
 
       - name: Log in to Heroku Container Registry
         if: env.HEROKU_ENABLED == 'true'

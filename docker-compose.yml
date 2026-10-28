@@ -4,17 +4,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-
     env_file:
       - .env
-
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
-
     volumes:
-      - ./.env:/app/.env:ro
-      - ./cookies:/app/cookies
       - ./stream_media:/app/stream_media
-      - ./dist:/app/dist:ro
-
-    restart: on-failure
+      - ./cookies:/app/cookies
+    restart: unless-stopped

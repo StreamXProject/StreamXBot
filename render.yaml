@@ -10,5 +10,19 @@ services:
     healthCheckPath: /health
 
     envVars:
-      - key: CONFIG_GIST
+      - key: MONGO_URI
+        sync: false
+      - key: DATABASE_NAME
+        value: StreamX
+      - key: API_ID
+        sync: false
+      - key: API_HASH
+        sync: false
+      - key: BOT_TOKEN
+        sync: false
+      - key: OWNER_ID
+        sync: false
+      - key: CHANNEL_ID
+        sync: false
+      - key: SECRET_KEY
         sync: false

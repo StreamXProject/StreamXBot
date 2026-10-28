@@ -1,52 +1,54 @@
-# syntax=docker/dockerfile:1.2
+# syntax=docker/dockerfile:1.4
 
+# Stage 1: Build WebX SPA Frontend
 FROM node:20-alpine AS frontend-builder
 
 RUN apk add --no-cache git
 
-RUN git clone https://github.com/StreamXProject/WebX.git /app/WebX
+ARG WEBX_REPO=https://github.com/StreamXProject/WebX.git
+RUN git clone --depth 1 ${WEBX_REPO} /app/WebX
 
 WORKDIR /app/WebX
 
 RUN npm install
 RUN npm run build
 
-FROM python:3.12-slim-bookworm
+# Stage 2: Build StreamGO Backend Binary
+FROM golang:1.25-alpine AS go-builder
 
-RUN apt-get update && \
-    apt-get install -y \
-      git \
-      openssh-client \
-      build-essential \
-      gcc \
-      wget \
-      curl \
-      dpkg \
-      ca-certificates \
-      gnupg \
-      aria2 \
-      mediainfo \
-      ffmpeg \
-      libavcodec-extra \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache git ca-certificates
+
+ENV GOTOOLCHAIN=auto
 
 WORKDIR /app
 
-RUN python3 -m venv /app/streamvenv
-ENV PATH="/app/streamvenv/bin:$PATH" \
-    PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PORT=8000
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt
+COPY go.mod go.sum ./
+RUN go mod download
 
 COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/bin/server ./cmd/server
 
-COPY --from=frontend-builder /app/WebX/dist ./dist
+# Stage 3: Production Runtime
+FROM alpine:3.21
+
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    ffmpeg \
+    mediainfo
+
+WORKDIR /app
+
+# Copy compiled Go server binary
+COPY --from=go-builder /app/bin/server /app/server
+
+# Copy compiled WebX SPA frontend
+COPY --from=frontend-builder /app/WebX/dist /app/dist
+
+# Default configuration environment variables
+ENV PORT=8000 \
+    APP_ENV=production
 
 EXPOSE 8000
 
-CMD ["python3", "-m", "stream"]
+ENTRYPOINT ["/app/server"]
