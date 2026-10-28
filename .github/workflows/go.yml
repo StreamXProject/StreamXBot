@@ -1,0 +1,24 @@
+name: Go
+
+on:
+  push:
+    branches: [main, dev/go-migration]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+      - run: go test ./...
+      - run: go vet ./...
+      - run: go build ./cmd/server
