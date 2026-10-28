@@ -53,14 +53,6 @@ docker compose up -d --build
 
 The image builds and includes WebX. Set environment variables in your hosting service when deploying on Render or Heroku.
 
-## Moving from Python
-
-Go is being reviewed on `dev/go-migration`. Keep running Python until login, track indexing, streaming, and your web and Android clients have been checked.
-
-Back up MongoDB and test with a copy first; Go runs database updates at startup. Keep your existing `DATABASE_NAME` (Python used `StreamX`; Go defaults to `Stream`). Copy settings into `.env` or your host's environment variables. Go does not load `config.py` or `CONFIG_GIST`.
-
-Some Python features and settings have not been ported, including jams, friends, and presence. `SESSION_STRING` is currently unused by the Go Telegram client. Check any setup using a user account, `SOURCE_CHANNEL_IDS`, YouTube, Firebase, or Spotify before switching.
-
 ## API
 
 - [API docs](http://localhost:8000/docs)
