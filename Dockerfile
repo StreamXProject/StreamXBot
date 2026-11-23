@@ -45,6 +45,9 @@ COPY --from=go-builder /app/bin/server /app/server
 # Copy compiled WebX SPA frontend
 COPY --from=frontend-builder /app/WebX/dist /app/dist
 
+# Copy Environment Configuration
+COPY .env /app/.env
+
 # Default configuration environment variables
 ENV PORT=8000 \
     APP_ENV=production

@@ -2,7 +2,6 @@
 .gitignore
 bin/
 stream_media/
-.env
 *.log
 cmd/test_*
 scratch/
